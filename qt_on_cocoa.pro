@@ -1,0 +1,15 @@
+TEMPLATE = app
+
+QT += gui widgets quick gui_private
+
+OBJECTIVE_SOURCES += main.mm
+HEADERS += rasterwindow.h
+SOURCES += rasterwindow.cpp
+HEADERS += openglwindow.h
+SOURCES += openglwindow.cpp
+HEADERS += openglwindowresize.h
+SOURCES += openglwindowresize.cpp
+HEADERS += widgetwindow.h
+SOURCES += widgetwindow.cpp
+
+LIBS += -framework Cocoa
