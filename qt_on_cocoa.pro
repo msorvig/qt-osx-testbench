@@ -2,7 +2,12 @@ TEMPLATE = app
 
 QT += gui widgets quick gui_private
 
-OBJECTIVE_SOURCES += main.mm
+CONFIG += c++11
+
+OBJECTIVE_SOURCES += \
+    main.mm \
+    nativecocoaview.mm
+
 HEADERS += rasterwindow.h
 SOURCES += rasterwindow.cpp
 HEADERS += openglwindow.h

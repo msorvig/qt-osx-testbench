@@ -35,12 +35,14 @@
 #include "openglwindow.h"
 #include "widgetwindow.h"
 #include "openglwindowresize.h"
+#import "nativecocoaview.h"
+
 
 #include <QtGui>
 #include <QtWidgets>
 #include <QtQuick>
 
-#include <Cocoa/Cocoa.h>
+#import <Cocoa/Cocoa.h>
 
 #include <qpa/qplatformnativeinterface.h>
 
@@ -87,8 +89,6 @@ NSView *getEmbeddableView(QWindow *qtWindow)
     return qtView; // qtView is ready for use.
 }
 
-
-
 @implementation AppDelegate
 - (AppDelegate *) initWithArgc:(int)argc argv:(const char **)argv
 {
@@ -116,31 +116,37 @@ NSView *getEmbeddableView(QWindow *qtWindow)
     [window setTitle:title];
     [window setBackgroundColor:[NSColor blueColor]];
 
-    // QWidget
-#if 0
-    m_widget = new RedWidget;
-    NSView *widgetView = reinterpret_cast<NSView *>(m_widget->winId());
-    [window setContentView:widgetView];
-    m_widget->show(); // ### widgets needs a show
-#endif
-
     // Create test windows
+    m_widget = new RedWidget;
+    m_widget->winId(); // create
     m_rasterWindow = new RasterWindow();
     m_openglWindow = new OpenGLWindow();
     m_openglWindowResize = new MyOpenGLWindow();
-//    m_openglWindowResize
 
     m_qtquickWindow = new QQuickView(QUrl::fromLocalFile("main.qml"));
     
     // select window and set as content view.
-    m_window = m_openglWindowResize;
+    m_window = m_rasterWindow;
+//    m_window = m_openglWindow;
+//    m_window = m_widget->windowHandle();
+    m_window->create();
+
+//    m_window->setMask(QRegion(QRect(0,0, 200, 100)));
 
     NSView *view = reinterpret_cast<NSView *>(getEmbeddableView(m_window));
-    [view setFrame : NSMakeRect(0, 0, 512, 512)];
-    
+    [view setFrame : NSMakeRect(50, 50, 400, 400)];
+
+    NSView *contentView = [[NativeCocoaView alloc] init];
+    [window setContentView: contentView];
+    [window makeFirstResponder: contentView];
+
     [[window contentView] addSubview : view];
-//    [window setContentView:  view];
+    [window makeFirstResponder: view];
+
+    // Need show calls. ### making the native NSView visible should be enough
     m_window->show();
+    if (m_window == m_widget->windowHandle())
+        m_widget->show();
 
     // Show the NSWindow
     [window makeKeyAndOrderFront:NSApp];
@@ -159,7 +165,7 @@ NSView *getEmbeddableView(QWindow *qtWindow)
 int main(int argc, const char *argv[])
 {
     // Optionally test a layer-backed Qt view
-    // qputenv("QT_MAC_WANTS_LAYER", "1");
+    //qputenv("QT_MAC_WANTS_LAYER", "1");
     
     // Create NSApplicaiton with delgate
     NSApplication *app =[NSApplication sharedApplication];
