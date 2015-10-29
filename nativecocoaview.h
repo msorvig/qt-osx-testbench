@@ -10,6 +10,7 @@
 @interface ControllerView : NSView
 {
     NSView *controlledView;
+    bool isMove;
 }
 - (id) initWithView: (NSView *) view;
 

@@ -92,8 +92,13 @@
 
 - (void)mouseDown:(NSEvent *) ev
 {
-    Q_UNUSED(ev)
     qDebug() << "ControllerView mouse down";
+
+    NSRect rect = [self frame];
+    NSPoint position = [self convertPoint:[ev locationInWindow] fromView:nil];
+
+    // Prepare drag mode: frame top: move, else: resize.
+    isMove = (rect.size.height - position.y) < 20;
 
     [self orderFront: self];
 //    [self orderFront: controlledView];
@@ -109,10 +114,18 @@
 
 - (void)mouseDragged:(NSEvent *) ev
 {
-    Q_UNUSED(ev)
     NSRect rect = [self frame];
-    rect.origin.x += [ev  deltaX];
-    rect.origin.y -= [ev  deltaY];
+    NSPoint position = [self convertPoint:[ev locationInWindow] fromView:nil];
+
+    if (isMove) {
+        rect.origin.x += [ev deltaX];
+        rect.origin.y -= [ev deltaY];
+    } else {
+        rect.size.width += [ev deltaX];
+        rect.origin.y -= [ev deltaY];
+        rect.size.height += [ev deltaY];
+    }
+
     [self setFrame: rect];
 //    [[self superview] setNeedsDisplay:YES];
 }
