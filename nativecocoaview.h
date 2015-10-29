@@ -6,3 +6,11 @@
 
 }
 @end
+
+@interface ControllerView : NSView
+{
+    NSView *controlledView;
+}
+- (id) initWithView: (NSView *) view;
+
+@end

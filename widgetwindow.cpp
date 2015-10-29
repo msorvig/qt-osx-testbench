@@ -44,7 +44,7 @@ void RedWidget::resizeEvent(QResizeEvent *)
 void RedWidget::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event);
-    qDebug() << "RedWidget::paintEvent" << event->rect();
+//    qDebug() << "RedWidget::paintEvent" << event->rect();
 
     QPainter p(this);
     QRect rect(QPoint(0, 0), size());

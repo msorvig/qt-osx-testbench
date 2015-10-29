@@ -55,6 +55,7 @@
     QWindow *m_qtquickWindow;
 
     QWindow *m_window;
+    NSWindow *m_topLevelWindow;
 }
 - (AppDelegate *) initWithArgc:(int)argc argv:(const char **)argv;
 - (void) applicationWillFinishLaunching: (NSNotification *)notification;
@@ -98,7 +99,22 @@ NSView *getEmbeddableView(QWindow *qtWindow)
     m_openglWindow = 0;
     m_qtquickWindow = 0;
     m_window = 0;
+    m_topLevelWindow = 0;
     return self;
+}
+
+- (void) addChildView: (NSView *) view
+{
+    // Add controller view for child view
+    NSView *controllerView = [[ControllerView alloc] initWithView: view];
+    [controllerView setFrame : NSMakeRect(50, 50, 300, 300)];
+    [[m_topLevelWindow contentView] addSubview : controllerView];
+}
+
+- (void) addChildWindow: (QWindow *) window
+{
+    NSView *view = getEmbeddableView(window);
+    [self addChildView: view];
 }
 
 - (void) applicationWillFinishLaunching: (NSNotification *)notification
@@ -111,42 +127,38 @@ NSView *getEmbeddableView(QWindow *qtWindow)
                         styleMask:NSTitledWindowMask |  NSClosableWindowMask | NSMiniaturizableWindowMask | NSResizableWindowMask
                         backing:NSBackingStoreBuffered
                         defer:NO];
+    m_topLevelWindow = window;
 
-    NSString *title = @"Top-level NSWindows";
+    NSString *title = @"Top-level NSWindow";
     [window setTitle:title];
     [window setBackgroundColor:[NSColor blueColor]];
 
-    // Create test windows
-    m_widget = new RedWidget;
-    m_widget->winId(); // create
-    m_rasterWindow = new RasterWindow();
-    m_openglWindow = new OpenGLWindow();
-    m_openglWindowResize = new MyOpenGLWindow();
-
-    m_qtquickWindow = new QQuickView(QUrl::fromLocalFile("main.qml"));
-    
-    // select window and set as content view.
-    m_window = m_rasterWindow;
-//    m_window = m_openglWindow;
-//    m_window = m_widget->windowHandle();
-    m_window->create();
-
-//    m_window->setMask(QRegion(QRect(0,0, 200, 100)));
-
-    NSView *view = reinterpret_cast<NSView *>(getEmbeddableView(m_window));
-    [view setFrame : NSMakeRect(50, 50, 400, 400)];
 
     NSView *contentView = [[NativeCocoaView alloc] init];
     [window setContentView: contentView];
     [window makeFirstResponder: contentView];
 
-    [[window contentView] addSubview : view];
-    [window makeFirstResponder: view];
+    m_widget = new RedWidget();
+    m_widget->winId(); // create, ### fixme
+    m_widget->windowHandle()->setMask(QRegion(QRect(0,0, 200, 75)));
+    [self addChildWindow: m_widget->windowHandle()];
+    m_widget->show();
 
-    // Need show calls. ### making the native NSView visible should be enough
-    m_window->show();
-    if (m_window == m_widget->windowHandle())
-        m_widget->show();
+    m_rasterWindow = new RasterWindow();
+    [self addChildWindow: m_rasterWindow];
+    m_rasterWindow->show();
+
+    m_openglWindow = new OpenGLWindow();
+    [self addChildWindow: m_openglWindow];
+    m_openglWindow->show();
+
+    m_openglWindowResize = new MyOpenGLWindow();
+    [self addChildWindow: m_openglWindowResize];
+    m_openglWindowResize->show();
+
+    m_qtquickWindow = new QQuickView(QUrl::fromLocalFile("main.qml"));
+    [self addChildWindow: m_qtquickWindow];
+    m_qtquickWindow->show();
 
     // Show the NSWindow
     [window makeKeyAndOrderFront:NSApp];
