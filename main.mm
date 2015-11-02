@@ -56,6 +56,8 @@
 
     QWindow *m_window;
     NSWindow *m_topLevelWindow;
+
+    QPoint m_childCascadePoint;
 }
 - (AppDelegate *) initWithArgc:(int)argc argv:(const char **)argv;
 - (void) applicationWillFinishLaunching: (NSNotification *)notification;
@@ -107,7 +109,8 @@ NSView *getEmbeddableView(QWindow *qtWindow)
 {
     // Add controller view for child view
     NSView *controllerView = [[ControllerView alloc] initWithView: view];
-    [controllerView setFrame : NSMakeRect(50, 50, 300, 300)];
+    m_childCascadePoint += QPoint(50, 50);
+    [controllerView setFrame : NSMakeRect(m_childCascadePoint.x(), m_childCascadePoint.y(), 300, 300)];
     [[m_topLevelWindow contentView] addSubview : controllerView];
 }
 

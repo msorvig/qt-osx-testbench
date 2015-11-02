@@ -86,7 +86,10 @@
 - (void)drawRect: (NSRect)dirtyRect
 {
     [[NSColor colorWithDeviceWhite: 0.5 alpha: 1] setFill];
-    NSRectFill(dirtyRect);
+    [[NSColor colorWithDeviceWhite: 0.4 alpha: 1] set];
+    [NSBezierPath strokeRect:[self bounds]];
+    [NSBezierPath fillRect:dirtyRect];
+
     [super drawRect:dirtyRect];
 }
 

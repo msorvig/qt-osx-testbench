@@ -17,4 +17,4 @@ SOURCES += openglwindowresize.cpp
 HEADERS += widgetwindow.h
 SOURCES += widgetwindow.cpp
 
-LIBS += -framework Cocoa
+LIBS += -framework AppKit -framework QuartzCore
