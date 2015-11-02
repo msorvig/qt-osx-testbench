@@ -1,6 +1,7 @@
 #import "nativecocoaview.h"
 
 #include <QtCore/QtCore>
+#include <QtGui/QtGui>
 
 @implementation NativeCocoaView
 
@@ -134,3 +135,34 @@
 }
 
 @end
+@implementation RasterLayerView
+
+- (id)init
+{
+    [super init];
+    [self setWantsLayer: true];
+    return self;
+}
+
+- (BOOL)wantsUpdateLayer
+{
+    return YES;
+}
+
+- (void)updateLayer
+{
+    QSize contentiSize(200, 200);
+    QImage content(contentiSize, QImage::Format_ARGB32_Premultiplied);
+    QPainter p(&content);
+    p.fillRect(QRect(QPoint(0,0), contentiSize), Qt::red);
+    self.layer.contents = content.toNSImage();
+}
+
+- (void)drawRect: (NSRect)dirtyRect
+{
+    qFatal("Unexpected this is"); // drawRect should not be called.
+    [super drawRect: dirtyRect];
+}
+
+@end
+

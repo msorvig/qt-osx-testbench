@@ -18,5 +18,11 @@
     bool isMove;
 }
 - (id) initWithView: (NSView *) view;
+@end
 
+// A View that provides raster layer content
+@interface RasterLayerView : NSView
+{
+    QPainterLayer *m_layer;
+}
 @end
