@@ -21,6 +21,7 @@
 @end
 
 // A View that provides raster layer content
+@class QPainterLayer;
 @interface RasterLayerView : NSView
 {
     QPainterLayer *m_layer;

@@ -119,7 +119,6 @@
 - (void)mouseDragged:(NSEvent *) ev
 {
     NSRect rect = [self frame];
-    NSPoint position = [self convertPoint:[ev locationInWindow] fromView:nil];
 
     if (isMove) {
         rect.origin.x += [ev deltaX];
@@ -135,15 +134,84 @@
 }
 
 @end
+
+@interface QPainterLayer : CALayer
+{
+    QImage *m_buffer;
+}
+-(void)updatePaintedContents;
+@end
+
+@interface QPainterLayerDelegate : NSObject
+{
+
+}
+- (void)displayLayer:(CALayer *)layer;
+@end
+
+@implementation QPainterLayer
+
+- (id)init
+{
+    [super init];
+
+    self.needsDisplayOnBoundsChange = true;
+    [self updatePaintedContents];
+
+    return self;
+}
+
+-(void)updatePaintedContents
+{
+//    qDebug() << "QPainterLayer::updatePaintedContents";
+    QSize contentiSize(200, 200);
+    QImage content(contentiSize, QImage::Format_ARGB32_Premultiplied);
+    QPainter p(&content);
+    p.fillRect(QRect(QPoint(0,0), contentiSize), Qt::red);
+    self.contents = content.toNSImage();
+}
+
+@end
+
+@implementation QPainterLayerDelegate
+
+- (void)displayLayer:(CALayer *)layer
+{
+//    qDebug() << "QPainterLayerDelegate::displayLayer";
+    [static_cast<QPainterLayer *>(layer) updatePaintedContents];
+}
+
+@end
+
 @implementation RasterLayerView
 
 - (id)init
 {
     [super init];
     [self setWantsLayer: true];
+
+    // RasterLayerView supports two modes: either (1) use the standard backing
+    // layer and implement wantsUpdateLayer and updateLayer, or (2) use a
+    // custom layer, implement makeBackingLayer and set a custom delegate
+    // which implements updatePaintedContents.
+
+    // Mode (2): Cocoa will set the delagate during setWantsLayer; reset it here
+    // to our delegate:
+    // self.layer.delegate = [[QPainterLayerDelegate alloc] init];
     return self;
 }
 
+/*
+// mode (2)
+- (CALayer *)makeBackingLayer
+{
+    qDebug() << "RasterLayerView::makeBackingLayer";
+
+     // The layer for this view should be a QPainterLayer
+    return [[CALayer alloc] init];
+    return [[QPainterLayer alloc] init];
+}
+*/
 - (BOOL)wantsUpdateLayer
 {
     return YES;
@@ -160,7 +228,7 @@
 
 - (void)drawRect: (NSRect)dirtyRect
 {
-    qFatal("Unexpected this is"); // drawRect should not be called.
+    qWarning("RasterLayerView:drawRect: Unexpected this is"); // drawRect should not be called.
     [super drawRect: dirtyRect];
 }
 
