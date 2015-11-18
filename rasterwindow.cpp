@@ -33,13 +33,11 @@
 
 #include "rasterwindow.h"
 
-//#include <private/qguiapplication_p.h>
+//#define HAVE_PARTIAL_UPDATE
 
 #include <QBackingStore>
 #include <QPainter>
 #include <QtWidgets>
-
-static int colorIndexId = 0;
 
 QColor colorTable[] =
 {
@@ -48,88 +46,57 @@ QColor colorTable[] =
     QColor("#c0ef8f")
 };
 
+// RasterWidnow is a simple QRasterWindow subclass with
+// full and partial updates.
 RasterWindow::RasterWindow(QRasterWindow *parent)
     : QRasterWindow(parent)
-    , m_backgroundColorIndex(colorIndexId++)
+    , m_backgroundColorIndex(0)
+    , m_mousePressed(false)
 {
     initialize();
 }
 
 void RasterWindow::initialize()
 {
-    if (parent())
-        setGeometry(QRect(160, 120, 320, 240));
-    else {
-        setGeometry(QRect(10, 10, 640, 480));
-
-        setSizeIncrement(QSize(10, 10));
-        setBaseSize(QSize(640, 480));
-        setMinimumSize(QSize(240, 160));
-        setMaximumSize(QSize(800, 600));
-    }
-
-    create();
-    m_backingStore = new QBackingStore(this);
-
-    m_image = QImage(geometry().size(), QImage::Format_RGB32);
-    m_image.fill(colorTable[m_backgroundColorIndex % (sizeof(colorTable) / sizeof(colorTable[0]))].rgba());
-
-    m_lastPos = QPoint(-1, -1);
-    m_renderTimer = 0;
 }
 
 void RasterWindow::mousePressEvent(QMouseEvent *event)
 {
-    m_lastPos = event->pos();
+    m_mousePressed = true;
+
+#ifdef HAVE_PARTIAL_UPDATE
+    QRect updateRect(0,0,20,20);
+    updateRect.moveCenter(event->pos());
+    update(updateRect);
+#else
+    update();
+#endif
 }
 
 void RasterWindow::mouseMoveEvent(QMouseEvent *event)
 {
-    if (m_lastPos != QPoint(-1, -1)) {
-        QPainter p(&m_image);
-        p.setRenderHint(QPainter::Antialiasing);
-        p.drawLine(m_lastPos, event->pos());
-        m_lastPos = event->pos();
-    }
+    if (!m_mousePressed)
+        return;
 
-    scheduleRender();
+#ifdef HAVE_PARTIAL_UPDATE
+    QRect updateRect(0,0,10,10);
+    updateRect.moveCenter(event->pos());
+    update(updateRect);
+#else
+    update();
+#endif
 }
 
 void RasterWindow::mouseReleaseEvent(QMouseEvent *event)
 {
-    if (m_lastPos != QPoint(-1, -1)) {
-        QPainter p(&m_image);
-        p.setRenderHint(QPainter::Antialiasing);
-        p.drawLine(m_lastPos, event->pos());
-        m_lastPos = QPoint(-1, -1);
-    }
-
-    scheduleRender();
-}
-
-void RasterWindow::exposeEvent(QExposeEvent *)
-{
-    scheduleRender();
-}
-
-void RasterWindow::resizeEvent(QResizeEvent *)
-{
-    QImage old = m_image;
-
-    //qDebug() << "RasterWindow::resizeEvent" << width << height;
-
-    int width = qMax(geometry().width(), old.width());
-    int height = qMax(geometry().height(), old.height());
-
-    if (width > old.width() || height > old.height()) {
-        m_image = QImage(width, height, QImage::Format_RGB32);
-        m_image.fill(colorTable[(m_backgroundColorIndex) % (sizeof(colorTable) / sizeof(colorTable[0]))].rgba());
-
-        QPainter p(&m_image);
-        p.drawImage(0, 0, old);
-    }
-
-    render();
+    m_mousePressed = false;
+#ifdef HAVE_PARTIAL_UPDATE
+    QRect updateRect(0,0,20,20);
+    updateRect.moveCenter(event->pos());
+    update(updateRect);
+#else
+    update();
+#endif
 }
 
 void RasterWindow::keyPressEvent(QKeyEvent *event)
@@ -146,43 +113,16 @@ void RasterWindow::keyPressEvent(QKeyEvent *event)
         m_text.append(event->text());
         break;
     }
-    scheduleRender();
+    update();
 }
 
-void RasterWindow::scheduleRender()
+void RasterWindow::paintEvent(QPaintEvent *event)
 {
-    if (!m_renderTimer)
-        m_renderTimer = startTimer(1);
+//    qDebug() << "paintEvent" << event->rect();
+    ++m_backgroundColorIndex;
+
+    QPainter p(this);
+    QColor backgroundColor = colorTable[m_backgroundColorIndex % (sizeof(colorTable) / sizeof(colorTable[0]))].rgba();
+    p.fillRect(event->rect(), backgroundColor);
+    p.drawText(QPoint(20,20), m_text);
 }
-
-void RasterWindow::timerEvent(QTimerEvent *)
-{
-    render();
-    killTimer(m_renderTimer);
-    m_renderTimer = 0;
-}
-
-void RasterWindow::render()
-{
-    QRect rect(QPoint(), geometry().size());
-
-    m_backingStore->resize(rect.size());
-
-    m_backingStore->beginPaint(rect);
-
-    QPaintDevice *device = m_backingStore->paintDevice();
-
-    QPainter p(device);
-    p.drawImage(0, 0, m_image);
-
-    QFont font;
-    font.setPixelSize(32);
-
-    p.setFont(font);
-    p.drawText(rect, 0, m_text);
-
-    m_backingStore->endPaint();
-    m_backingStore->flush(rect);
-}
-
-

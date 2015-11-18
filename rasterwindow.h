@@ -46,20 +46,12 @@ protected:
 
     void keyPressEvent(QKeyEvent *);
 
-    void exposeEvent(QExposeEvent *);
-    void resizeEvent(QResizeEvent *);
-
-    void timerEvent(QTimerEvent *);
+    void paintEvent(QPaintEvent *event);
 
 private:
-    void render();
-    void scheduleRender();
     void initialize();
 
     QString m_text;
-    QImage m_image;
-    QPoint m_lastPos;
     int m_backgroundColorIndex;
-    QBackingStore *m_backingStore;
-    int m_renderTimer;
+    bool m_mousePressed;
 };
