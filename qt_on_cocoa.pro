@@ -4,17 +4,22 @@ QT += gui widgets quick gui_private
 
 CONFIG += c++11
 
+HEADERS += \
+    glcontent.h \
+    openglwindow.h \
+    openglwindowresize.h \
+    rasterwindow.h \
+    widgetwindow.h \
+
+SOURCES += \
+    glcontent.cpp \
+    openglwindow.cpp \
+    openglwindowresize.cpp \
+    rasterwindow.cpp \
+    widgetwindow.cpp \
+
 OBJECTIVE_SOURCES += \
     main.mm \
-    nativecocoaview.mm
-
-HEADERS += rasterwindow.h
-SOURCES += rasterwindow.cpp
-HEADERS += openglwindow.h
-SOURCES += openglwindow.cpp
-HEADERS += openglwindowresize.h
-SOURCES += openglwindowresize.cpp
-HEADERS += widgetwindow.h
-SOURCES += widgetwindow.cpp
+    nativecocoaview.mm \
 
 LIBS += -framework AppKit -framework QuartzCore

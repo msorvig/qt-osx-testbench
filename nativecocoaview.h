@@ -27,3 +27,20 @@
     QPainterLayer *m_layer;
 }
 @end
+
+// A View that provides OPenGL layer content
+class QOpenGLLayer;
+@interface OpenGLLayerView : NSView
+{
+    QOpenGLLayer *m_layer;
+}
+@end
+
+// An animated NSOpenGLView subclass
+@interface AnimatedOpenGLVew : NSOpenGLView
+{
+    CVDisplayLinkRef m_displayLink;
+    int frame;
+}
+@end
+

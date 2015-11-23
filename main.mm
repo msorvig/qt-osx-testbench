@@ -46,6 +46,23 @@
 
 #include <qpa/qplatformnativeinterface.h>
 
+// Global Options. These can be tweaked to run the examples/test in different configurations
+
+// Window configuration/hosting options (mutally exclusive, select one)
+bool g_useTopLevelWindows = false; // show each window/view as a top-level window instead
+                                   // of as embedded windows.
+bool g_useChildWindows = false;    // embed each window/view in a native NSWindow
+bool g_useVhildViews = true;       // embed each window/view in a native NSView
+
+bool g_useContainingLayers = true; // use layers for the containing native views --
+                                   // the content and coontroller views)
+
+// Native View animation drivers (mutally exclusive, select one)
+bool g_useNativeAnimationTimer = false; // animate using a timer
+bool g_useNativeAnimationSetNeedsDisplay = false; // animate by calling setNeedsDisplay.
+bool g_useNativeAnimationDisplaylink = true; // animate using CVDisplayLink
+
+
 @interface AppDelegate : NSObject <NSApplicationDelegate> {
     QGuiApplication *m_app;
     QWidget *m_widget;
@@ -107,17 +124,79 @@ NSView *getEmbeddableView(QWindow *qtWindow)
 
 - (void) addChildView: (NSView *) view
 {
-    // Add controller view for child view
-    NSView *controllerView = [[ControllerView alloc] initWithView: view];
-    m_childCascadePoint += QPoint(50, 50);
-    [controllerView setFrame : NSMakeRect(m_childCascadePoint.x(), m_childCascadePoint.y(), 300, 300)];
-    [[m_topLevelWindow contentView] addSubview : controllerView];
+    // handle cases that embeds the view in its own window
+    if (g_useChildWindows || g_useTopLevelWindows) {
+        NSRect frame = NSMakeRect(0, 0, 200, 100);
+        NSWindow *window =
+            [[NSWindow alloc] initWithContentRect:frame
+                                         styleMask:NSTitledWindowMask | NSClosableWindowMask |
+                                                   NSMiniaturizableWindowMask | NSResizableWindowMask
+                                           backing:NSBackingStoreBuffered
+                                             defer:NO];
+        [window setContentView:view];
+
+        if (g_useTopLevelWindows) {
+            [window makeKeyAndOrderFront:nil];
+        } else {
+            [m_topLevelWindow addChildWindow:window ordered:NSWindowAbove];
+        }
+    } else {
+        // Add controller view for child view
+        NSView *controllerView = [[ControllerView alloc] initWithView: view];
+        m_childCascadePoint += QPoint(50, 50);
+        [controllerView setFrame : NSMakeRect(m_childCascadePoint.x(), m_childCascadePoint.y(), 300, 300)];
+        [[m_topLevelWindow contentView] addSubview : controllerView];
+    }
 }
 
 - (void) addChildWindow: (QWindow *) window
 {
+    if (g_useTopLevelWindows) {
+        window->show();
+        return;
+    }
+
     NSView *view = getEmbeddableView(window);
     [self addChildView: view];
+    window->show(); // ### fixme
+}
+
+- (void) addChildWidget: (QWidget *) widget
+{
+    widget->winId(); // create, ### fixme
+    [self addChildWindow: widget->windowHandle()];
+    widget->show(); // ### fixme
+}
+
+// test showing several animated OpenGL views, along with a QWidget window.
+// The OpenGL views should animate at 60 fps.
+- (void) nativeMultiWindowAnimation
+{
+    [self addChildView: [[AnimatedOpenGLVew alloc] init]];
+    [self addChildView: [[AnimatedOpenGLVew alloc] init]];
+    [self addChildView: [[AnimatedOpenGLVew alloc] init]];
+
+    [self addChildWidget: new RedWidget()];
+}
+
+// test showing several animated QOpenGLWindows. Should animate at 60 fps
+- (void) qtMultiWindowAnimation
+{
+//     g_useTopLevelWindows = true;
+
+    [self addChildWindow: new OpenGLWindow()];
+    [self addChildWindow: new OpenGLWindow()];
+    [self addChildWindow: new OpenGLWindow()];
+    [self addChildWindow: new OpenGLWindow()];
+}
+
+// test steting a mask on a QWindow. Mouse clicks should
+// "click through" for the masked region.
+- (void) maskedWindow
+{
+    QWidget *widget = new RedWidget();
+    [self addChildWidget: widget];
+    widget->windowHandle()->setMask(QRegion(QRect(0,0, 200, 75)));
 }
 
 - (void) applicationWillFinishLaunching: (NSNotification *)notification
@@ -126,34 +205,31 @@ NSView *getEmbeddableView(QWindow *qtWindow)
 
     // Create the NSWindow
     NSRect frame = NSMakeRect(500, 500, 500, 500);
-    NSWindow* window  = [[NSWindow alloc] initWithContentRect:frame
-                        styleMask:NSTitledWindowMask |  NSClosableWindowMask | NSMiniaturizableWindowMask | NSResizableWindowMask
-                        backing:NSBackingStoreBuffered
-                        defer:NO];
+    NSWindow *window = 
+        [[NSWindow alloc] initWithContentRect:frame
+                                     styleMask:NSTitledWindowMask | NSClosableWindowMask |
+                                               NSMiniaturizableWindowMask | NSResizableWindowMask
+                                       backing:NSBackingStoreBuffered
+                                         defer:NO];
     m_topLevelWindow = window;
 
-    NSString *title = @"Top-level NSWindow";
+    NSString *title = @"Qt on OS X Graphics Test Bench";
     [window setTitle:title];
     [window setBackgroundColor:[NSColor blueColor]];
-
 
     NSView *contentView = [[NativeCocoaView alloc] init];
     [window setContentView: contentView];
     [window makeFirstResponder: contentView];
 
-    m_widget = new RedWidget();
-    m_widget->winId(); // create, ### fixme
-    m_widget->windowHandle()->setMask(QRegion(QRect(0,0, 200, 75)));
-    [self addChildWindow: m_widget->windowHandle()];
-    m_widget->show();
+    // Select test/example:
+    [self nativeMultiWindowAnimation];
+//    [self qtMultiWindowAnimation];
+//    [self maskedWindow];
 
+/*
     m_rasterWindow = new RasterWindow();
     [self addChildWindow: m_rasterWindow];
     m_rasterWindow->show();
-
-    m_openglWindow = new OpenGLWindow();
-    [self addChildWindow: m_openglWindow];
-    m_openglWindow->show();
 
     m_openglWindowResize = new MyOpenGLWindow();
     [self addChildWindow: m_openglWindowResize];
@@ -162,9 +238,11 @@ NSView *getEmbeddableView(QWindow *qtWindow)
     m_qtquickWindow = new QQuickView(QUrl::fromLocalFile("main.qml"));
     [self addChildWindow: m_qtquickWindow];
     m_qtquickWindow->show();
+*/
 
-    // Show the NSWindow
-    [window makeKeyAndOrderFront:NSApp];
+    // Show the top-level NSWindow
+    if (!g_useTopLevelWindows)
+        [window makeKeyAndOrderFront:NSApp];
 }
 
 - (void)applicationWillTerminate:(NSNotification *)notification

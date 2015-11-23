@@ -5,22 +5,28 @@ RedWidget::RedWidget()
 {
     qDebug() << "RedWidget construct";
 
-    QHBoxLayout *hlayout = new QHBoxLayout();
+    QHBoxLayout *hlayout1 = new QHBoxLayout();
+    QHBoxLayout *hlayout2 = new QHBoxLayout();
 
     QPushButton *push = new QPushButton("Push");
     QCheckBox *disable = new QCheckBox("Disable");
     QLineEdit *edit = new QLineEdit();
+    QSlider *slider = new QSlider();
+    slider->setOrientation(Qt::Horizontal);
+
     QObject::connect(disable, &QCheckBox::stateChanged, [=](int state){
         edit->setDisabled(state);
         push->setDisabled(state);
     });
 
-    hlayout->addWidget(push);
-    hlayout->addWidget(disable);
-    hlayout->addWidget(edit);
+    hlayout1->addWidget(push);
+    hlayout1->addWidget(disable);
+    hlayout1->addWidget(edit);
+    hlayout2->addWidget(slider);
 
     QVBoxLayout *vlayout = new QVBoxLayout();
-    vlayout->addLayout(hlayout);
+    vlayout->addLayout(hlayout1);
+    vlayout->addLayout(hlayout2);
     setLayout(vlayout);
 
     //setMask(QRegion(QRect(0,0, 200, 75)));

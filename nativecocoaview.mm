@@ -1,5 +1,7 @@
 #import "nativecocoaview.h"
 
+#include "glcontent.h"
+
 #include <QtCore/QtCore>
 #include <QtGui/QtGui>
 
@@ -219,6 +221,7 @@
 
 - (void)updateLayer
 {
+//    qDebug() << "RasterLayerView::updateLayer";
     QSize contentiSize(200, 200);
     QImage content(contentiSize, QImage::Format_ARGB32_Premultiplied);
     QPainter p(&content);
@@ -231,6 +234,81 @@
     qWarning("RasterLayerView:drawRect: Unexpected this is"); // drawRect should not be called.
     [super drawRect: dirtyRect];
 }
-
+ 
 @end
 
+// A View that provides animated OpenGL content
+
+@implementation AnimatedOpenGLVew
+
+CVReturn animatedOpenGLVewDisplayLinkCallback(CVDisplayLinkRef displayLink, const CVTimeStamp* now,
+                                              const CVTimeStamp* outputTime, CVOptionFlags flagsIn,
+                                              CVOptionFlags* flagsOut, void* displayLinkContext)
+{
+    Q_UNUSED(displayLink)
+    Q_UNUSED(now)
+    Q_UNUSED(outputTime)
+    Q_UNUSED(flagsIn)
+    Q_UNUSED(flagsOut)
+
+    // We're on a secondary thread but want to repaint on the main thread:
+    // use performSelectorOnMainThread. (Using dispatch_async() is possible here, but
+    // that does not fire during mouse- trakcing run-loop modes.)
+    AnimatedOpenGLVew *view = reinterpret_cast<AnimatedOpenGLVew*>(displayLinkContext);
+    [view performSelectorOnMainThread:@selector(timerFire)
+                           withObject:view
+                         waitUntilDone:NO
+                                 modes:[NSArray arrayWithObject:NSRunLoopCommonModes]];
+    return 0;
+}
+
+- (id)init
+{
+    frame = 0;
+
+    NSOpenGLPixelFormatAttribute attributes [] =
+    {
+        NSOpenGLPFADoubleBuffer,
+        NSOpenGLPFANoRecovery,
+        NSOpenGLPFAAccelerated,
+        0
+    };
+
+    NSOpenGLPixelFormat *pixelFormat = [[NSOpenGLPixelFormat alloc]
+                                         initWithAttributes:attributes];
+
+    [super initWithFrame:NSMakeRect(0,0,0,0) pixelFormat:pixelFormat];
+    [self setWantsLayer: true];
+
+#ifdef TIMER
+    [[NSTimer scheduledTimerWithTimeInterval:1.0 / 60 target:self
+                                                    selector:@selector(timerFire)
+                                                    userInfo:nil
+                                                    repeats:YES] retain];
+
+#else
+	CVDisplayLinkCreateWithActiveCGDisplays(&m_displayLink);
+	CVDisplayLinkSetOutputCallback(m_displayLink, &animatedOpenGLVewDisplayLinkCallback, self);
+    CVDisplayLinkSetCurrentCGDisplay(m_displayLink, kCGDirectMainDisplay);	CVDisplayLinkStart(m_displayLink);
+#endif
+
+    return self;
+
+}
+
+- (void)timerFire
+{
+    [self setNeedsDisplay:YES];
+}
+
+- (void)drawRect:(NSRect)rect
+{
+    Q_UNUSED(rect);
+    ++frame;
+
+    drawSimpleGLContent(frame);
+
+    [[self openGLContext] flushBuffer];
+}
+
+@end
