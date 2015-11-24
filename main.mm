@@ -51,8 +51,8 @@
 // Window configuration/hosting options (mutally exclusive, select one)
 bool g_useTopLevelWindows = false; // show each window/view as a top-level window instead
                                    // of as embedded windows.
-bool g_useChildWindows = false;    // embed each window/view in a native NSWindow
-bool g_useVhildViews = true;       // embed each window/view in a native NSView
+bool g_useChildWindows = false;    // TODO: embed each window/view in a native NSWindow
+bool g_useChildViews = true;       // embed each window/view in a native NSView
 
 bool g_useContainingLayers = true; // use layers for the containing native views --
                                    // the content and coontroller views)
@@ -182,12 +182,26 @@ NSView *getEmbeddableView(QWindow *qtWindow)
 // test showing several animated QOpenGLWindows. Should animate at 60 fps
 - (void) qtMultiWindowAnimation
 {
-//     g_useTopLevelWindows = true;
+    // status: works with no layers, low framerate with layers present
 
     [self addChildWindow: new OpenGLWindow()];
     [self addChildWindow: new OpenGLWindow()];
     [self addChildWindow: new OpenGLWindow()];
     [self addChildWindow: new OpenGLWindow()];
+}
+
+// test showing a NSview with an attached OpenGL context.
+- (void) nativeOpenGLNSView
+{
+    // status: flickers when there are layers present. (set g_useContainingLayers
+    // to false above to disable). This is proably expected since we want to
+    // draw using the layer's context. NSOpenGLView handles this transition
+    // transparently to the user.
+    //
+    // g_useTopLevelWindows also makes this work.
+
+    [self addChildView: [[OpenGLNSView alloc] init]];
+    [self addChildView: [[OpenGLNSView alloc] init]];
 }
 
 // test steting a mask on a QWindow. Mouse clicks should
@@ -224,6 +238,7 @@ NSView *getEmbeddableView(QWindow *qtWindow)
     // Select test/example:
     [self nativeMultiWindowAnimation];
 //    [self qtMultiWindowAnimation];
+//    [self nativeOpenGLNSView];
 //    [self maskedWindow];
 
 /*

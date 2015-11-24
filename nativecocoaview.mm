@@ -5,12 +5,15 @@
 #include <QtCore/QtCore>
 #include <QtGui/QtGui>
 
+extern bool g_useContainingLayers;
+
 @implementation NativeCocoaView
 
 - (id) init
 {
     [super init];
-    [self setWantsLayer: true];
+    if (g_useContainingLayers)
+        [self setWantsLayer: true];
     return self;
 }
 
@@ -74,7 +77,8 @@
 - (id)init
 {
     [super init];
-    [self setWantsLayer: true];
+    if (g_useContainingLayers)
+        [self setWantsLayer: true];
     return self;
 }
 
@@ -237,11 +241,9 @@
  
 @end
 
-// A View that provides animated OpenGL content
 
-@implementation AnimatedOpenGLVew
-
-CVReturn animatedOpenGLVewDisplayLinkCallback(CVDisplayLinkRef displayLink, const CVTimeStamp* now,
+// CVDisplayLink callback that performs [timerFire] on a view, on the main thread
+CVReturn mainThreadTimerFireCallback(CVDisplayLinkRef displayLink, const CVTimeStamp* now,
                                               const CVTimeStamp* outputTime, CVOptionFlags flagsIn,
                                               CVOptionFlags* flagsOut, void* displayLinkContext)
 {
@@ -254,13 +256,17 @@ CVReturn animatedOpenGLVewDisplayLinkCallback(CVDisplayLinkRef displayLink, cons
     // We're on a secondary thread but want to repaint on the main thread:
     // use performSelectorOnMainThread. (Using dispatch_async() is possible here, but
     // that does not fire during mouse- trakcing run-loop modes.)
-    AnimatedOpenGLVew *view = reinterpret_cast<AnimatedOpenGLVew*>(displayLinkContext);
+    NSView *view = reinterpret_cast<NSView*>(displayLinkContext);
     [view performSelectorOnMainThread:@selector(timerFire)
                            withObject:view
                          waitUntilDone:NO
                                  modes:[NSArray arrayWithObject:NSRunLoopCommonModes]];
     return 0;
 }
+
+
+// A View that provides animated OpenGL content
+@implementation AnimatedOpenGLVew
 
 - (id)init
 {
@@ -278,7 +284,7 @@ CVReturn animatedOpenGLVewDisplayLinkCallback(CVDisplayLinkRef displayLink, cons
                                          initWithAttributes:attributes];
 
     [super initWithFrame:NSMakeRect(0,0,0,0) pixelFormat:pixelFormat];
-    [self setWantsLayer: true];
+//    [self setWantsLayer: true];
 
 #ifdef TIMER
     [[NSTimer scheduledTimerWithTimeInterval:1.0 / 60 target:self
@@ -288,7 +294,7 @@ CVReturn animatedOpenGLVewDisplayLinkCallback(CVDisplayLinkRef displayLink, cons
 
 #else
 	CVDisplayLinkCreateWithActiveCGDisplays(&m_displayLink);
-	CVDisplayLinkSetOutputCallback(m_displayLink, &animatedOpenGLVewDisplayLinkCallback, self);
+	CVDisplayLinkSetOutputCallback(m_displayLink, &mainThreadTimerFireCallback, self);
     CVDisplayLinkSetCurrentCGDisplay(m_displayLink, kCGDirectMainDisplay);	CVDisplayLinkStart(m_displayLink);
 #endif
 
@@ -312,3 +318,72 @@ CVReturn animatedOpenGLVewDisplayLinkCallback(CVDisplayLinkRef displayLink, cons
 }
 
 @end
+
+// A View that provides animated OpenGL content
+@implementation OpenGLNSView
+
+- (id)init
+{
+    frame = 0;
+
+    [super init];
+
+    NSOpenGLPixelFormatAttribute attributes [] =
+    {
+        NSOpenGLPFADoubleBuffer,
+        NSOpenGLPFANoRecovery,
+        NSOpenGLPFAAccelerated,
+        0
+    };
+
+    NSOpenGLPixelFormat *pixelFormat = [[NSOpenGLPixelFormat alloc]
+                                         initWithAttributes:attributes];
+    m_glcontext = [[NSOpenGLContext alloc] initWithFormat:pixelFormat shareContext:nil];
+
+//    GLint val = 0;
+//    [m_glcontext setValues:&val forParameter:NSOpenGLCPSwapInterval];
+
+//    [self setWantsLayer: true];
+
+	CVDisplayLinkCreateWithActiveCGDisplays(&m_displayLink);
+	CVDisplayLinkSetOutputCallback(m_displayLink, &mainThreadTimerFireCallback, self);
+    CVDisplayLinkSetCurrentCGDisplay(m_displayLink, kCGDirectMainDisplay); CVDisplayLinkStart(m_displayLink);
+
+    return self;
+}
+
+- (void)timerFire
+{
+    [self setNeedsDisplay:YES];
+}
+
+- (void)drawRect:(NSRect)rect
+{
+    Q_UNUSED(rect);
+    ++frame;
+
+    [m_glcontext makeCurrentContext];
+
+    // attach to view
+    if (m_glcontext.view != self) {
+        [m_glcontext setView:self];
+    }
+
+    // update on view size change.
+    NSSize size = [self convertSizeToBacking:self.frame.size];
+    if (m_currentViewportSize.width != size.width ||
+        m_currentViewportSize.height != size.height) {
+        m_currentViewportSize = size;
+        [m_glcontext update];
+    }
+
+    glViewport(0, 0, m_currentViewportSize.width, m_currentViewportSize.height);
+
+    drawSimpleGLContent(frame);
+
+    [m_glcontext flushBuffer];
+    [NSOpenGLContext clearCurrentContext];
+}
+
+@end
+

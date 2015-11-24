@@ -44,3 +44,12 @@ class QOpenGLLayer;
 }
 @end
 
+// NSView with attached OPenGL context, similar to the QCocoaWindow implementation
+@interface OpenGLNSView : NSView
+{
+    CVDisplayLinkRef m_displayLink;
+    NSOpenGLContext *m_glcontext;
+    NSSize m_currentViewportSize;
+    int frame;
+}
+@end
