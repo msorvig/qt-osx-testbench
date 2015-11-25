@@ -170,24 +170,13 @@ NSView *getEmbeddableView(QWindow *qtWindow)
 
 // test showing several animated OpenGL views, along with a QWidget window.
 // The OpenGL views should animate at 60 fps.
-- (void) nativeMultiWindowAnimation
+- (void) nativeNSOpenGLView
 {
     [self addChildView: [[AnimatedOpenGLVew alloc] init]];
     [self addChildView: [[AnimatedOpenGLVew alloc] init]];
     [self addChildView: [[AnimatedOpenGLVew alloc] init]];
 
     [self addChildWidget: new RedWidget()];
-}
-
-// test showing several animated QOpenGLWindows. Should animate at 60 fps
-- (void) qtMultiWindowAnimation
-{
-    // status: works with no layers, low framerate with layers present
-
-    [self addChildWindow: new OpenGLWindow()];
-    [self addChildWindow: new OpenGLWindow()];
-    [self addChildWindow: new OpenGLWindow()];
-    [self addChildWindow: new OpenGLWindow()];
 }
 
 // test showing a NSview with an attached OpenGL context.
@@ -210,6 +199,17 @@ NSView *getEmbeddableView(QWindow *qtWindow)
     [self addChildView: [[OpenGLLayerView alloc] init]];
     [self addChildView: [[OpenGLLayerView alloc] init]];
     [self addChildView: [[OpenGLLayerView alloc] init]];
+}
+
+// test showing several animated QOpenGLWindows. Should animate at 60 fps
+- (void) qtMultiWindowAnimation
+{
+    // status: works with no layers, low framerate with layers present
+
+    [self addChildWindow: new OpenGLWindow()];
+    [self addChildWindow: new OpenGLWindow()];
+    [self addChildWindow: new OpenGLWindow()];
+    [self addChildWindow: new OpenGLWindow()];
 }
 
 // test steting a mask on a QWindow. Mouse clicks should
@@ -244,25 +244,13 @@ NSView *getEmbeddableView(QWindow *qtWindow)
     [window makeFirstResponder: contentView];
 
     // Select test/example:
-    [self nativeMultiWindowAnimation];
-    [self nativeOpenGLLayer];
-//    [self qtMultiWindowAnimation];
+
+    [self nativeNSOpenGLView];
 //    [self nativeOpenGLNSView];
+//    [self nativeOpenGLLayer];
+
+//    [self qtMultiWindowAnimation];
 //    [self maskedWindow];
-
-/*
-    m_rasterWindow = new RasterWindow();
-    [self addChildWindow: m_rasterWindow];
-    m_rasterWindow->show();
-
-    m_openglWindowResize = new MyOpenGLWindow();
-    [self addChildWindow: m_openglWindowResize];
-    m_openglWindowResize->show();
-
-    m_qtquickWindow = new QQuickView(QUrl::fromLocalFile("main.qml"));
-    [self addChildWindow: m_qtquickWindow];
-    m_qtquickWindow->show();
-*/
 
     // Show the top-level NSWindow
     if (!g_useTopLevelWindows)
