@@ -241,6 +241,93 @@ extern bool g_useContainingLayers;
  
 @end
 
+@interface QOpenGLLayer : NSOpenGLLayer
+{
+    int frame;
+}
+@end
+
+@implementation QOpenGLLayer
+
+- (id)init
+{
+    [super init];
+    frame = 0;
+    return self;
+}
+
+- (NSOpenGLPixelFormat *)openGLPixelFormatForDisplayMask:(uint32_t)mask
+{
+    // TODO: according to docs we should use mask and create a NSOpenGLPFAScreenMask... somehow
+    // NSOpenGLPFAScreenMask, CGDisplayIDToOpenGLDisplayMask(kCGDirectMainDisplay),
+
+    Q_UNUSED(mask)
+    NSOpenGLPixelFormatAttribute attributes [] =
+    {
+        NSOpenGLPFADoubleBuffer,
+        NSOpenGLPFANoRecovery,
+        NSOpenGLPFAAccelerated,
+        0
+    };
+
+    NSOpenGLPixelFormat *pixelFormat = [[NSOpenGLPixelFormat alloc] initWithAttributes:attributes];
+    return pixelFormat;
+}
+
+- (NSOpenGLContext *)openGLContextForPixelFormat:(NSOpenGLPixelFormat *)pixelFormat
+{
+    return [[NSOpenGLContext alloc] initWithFormat:pixelFormat shareContext:nil];
+}
+
+- (BOOL)isAsynchronous
+{
+    return YES; // Yes, call canDrawInOpenGLContext (below) at 60 fps
+}
+
+- (BOOL)canDrawInOpenGLContext:(NSOpenGLContext *)context
+                   pixelFormat:(NSOpenGLPixelFormat *)pixelFormat
+                  forLayerTime:(CFTimeInterval)timeInterval
+                   displayTime:(const CVTimeStamp *)timeStamp
+{
+    Q_UNUSED(context);
+    Q_UNUSED(pixelFormat);
+    Q_UNUSED(timeInterval);
+    Q_UNUSED(timeStamp);
+
+    return YES; // Yes, we have a frame
+}
+
+- (void)drawInOpenGLContext:(NSOpenGLContext *)context
+                pixelFormat:(NSOpenGLPixelFormat *)pixelFormat
+               forLayerTime:(CFTimeInterval)timeInterval
+                displayTime:(const CVTimeStamp *)timeStamp
+{
+    Q_UNUSED(context);
+    Q_UNUSED(pixelFormat);
+    Q_UNUSED(timeInterval);
+    Q_UNUSED(timeStamp);
+
+    ++frame;
+    drawSimpleGLContent(frame);  // Here it is
+}
+
+@end
+
+@implementation OpenGLLayerView
+
+- (id)init
+{
+    [super init];
+    [self setWantsLayer:YES];
+    return self;
+}
+
+- (CALayer *)makeBackingLayer
+{
+    return [[QOpenGLLayer alloc] init];
+}
+
+@end
 
 // CVDisplayLink callback that performs [timerFire] on a view, on the main thread
 CVReturn mainThreadTimerFireCallback(CVDisplayLinkRef displayLink, const CVTimeStamp* now,

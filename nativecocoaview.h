@@ -29,7 +29,7 @@
 @end
 
 // A View that provides OPenGL layer content
-class QOpenGLLayer;
+@class QOpenGLLayer;
 @interface OpenGLLayerView : NSView
 {
     QOpenGLLayer *m_layer;
