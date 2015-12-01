@@ -2,10 +2,10 @@
 #include "openglwindow.h"
 #include "glcontent.h"
 
-OpenGLWindow::OpenGLWindow()
+OpenGLWindow::OpenGLWindow(const QByteArray &property)
     : QOpenGLWindow(QOpenGLWindow::NoPartialUpdate)
 {
-
+    setProperty(property.constData(), true);
 }
 
 void OpenGLWindow::paintGL()

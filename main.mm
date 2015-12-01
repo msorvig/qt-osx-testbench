@@ -212,6 +212,15 @@ NSView *getEmbeddableView(QWindow *qtWindow)
     [self addChildWindow: new OpenGLWindow()];
 }
 
+// test showing several animated layer-backed QOpenGLWindows.
+- (void) qtLayerOpenGLWindow
+{
+    [self addChildWindow: new OpenGLWindow("_q_mac_wantsLayer")];
+    [self addChildWindow: new OpenGLWindow("_q_mac_wantsLayer")];
+    [self addChildWindow: new OpenGLWindow("_q_mac_wantsLayer")];
+    [self addChildWindow: new OpenGLWindow("_q_mac_wantsLayer")];
+}
+
 // test steting a mask on a QWindow. Mouse clicks should
 // "click through" for the masked region.
 - (void) maskedWindow
@@ -250,6 +259,7 @@ NSView *getEmbeddableView(QWindow *qtWindow)
 //    [self nativeOpenGLLayer];
 
 //    [self qtMultiWindowAnimation];
+//    [self qtLayerOpenGLWindow];
 //    [self maskedWindow];
 
     // Show the top-level NSWindow

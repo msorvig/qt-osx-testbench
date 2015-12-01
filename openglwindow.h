@@ -24,7 +24,7 @@ class OpenGLWindow : public QOpenGLWindow
     Q_OBJECT
 
 public:
-    OpenGLWindow();
+    OpenGLWindow(const QByteArray &property = QByteArray());
 
 protected:
     void paintGL() Q_DECL_OVERRIDE;
