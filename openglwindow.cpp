@@ -6,6 +6,7 @@ OpenGLWindow::OpenGLWindow(const QByteArray &property)
     : QOpenGLWindow(QOpenGLWindow::NoPartialUpdate)
 {
     setProperty(property.constData(), true);
+    frame = 0;
 }
 
 void OpenGLWindow::paintGL()
