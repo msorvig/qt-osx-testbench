@@ -19,7 +19,7 @@ extern bool g_useContainingLayers;
 
 - (void)drawRect: (NSRect)dirtyRect
 {
-    [[NSColor grayColor] setFill];
+    [[NSColor colorWithDeviceRed:0.7 green:0.7 blue:0.7 alpha:1.0] setFill];
     NSRectFill(dirtyRect);
     [super drawRect:dirtyRect];
 }
