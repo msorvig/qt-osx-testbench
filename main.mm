@@ -198,35 +198,48 @@ NSView *getEmbeddableView(QWindow *qtWindow)
 {
     [self addChildView: [[OpenGLLayerView alloc] init]];
     [self addChildView: [[OpenGLLayerView alloc] init]];
-    [self addChildView: [[OpenGLLayerView alloc] init]];
 }
 
-
+// test showing a NSView with raster layer content
 - (void) nativeRasterLayer
 {
     [self addChildView: [[RasterLayerView alloc] init]];
     [self addChildView: [[RasterLayerView alloc] init]];
-    [self addChildView: [[RasterLayerView alloc] init]];
 }
 
-// test showing several animated QOpenGLWindows. Should animate at 60 fps
-- (void) qtMultiWindowAnimation
+// test QOpenGLWindow.
+- (void) qtOpenGLWindow
 {
-    // status: works with no layers, low framerate with layers present
-
-    [self addChildWindow: new OpenGLWindow()];
-    [self addChildWindow: new OpenGLWindow()];
     [self addChildWindow: new OpenGLWindow()];
     [self addChildWindow: new OpenGLWindow()];
 }
 
-// test showing several animated layer-backed QOpenGLWindows.
-- (void) qtLayerOpenGLWindow
+// test QOpenGLWindow that requests a layer and enables layer mode
+- (void) qtOpenGLLayerWindow
 {
     [self addChildWindow: new OpenGLWindow("_q_mac_wantsLayer")];
     [self addChildWindow: new OpenGLWindow("_q_mac_wantsLayer")];
-    [self addChildWindow: new OpenGLWindow("_q_mac_wantsLayer")];
-    [self addChildWindow: new OpenGLWindow("_q_mac_wantsLayer")];
+}
+
+// test RasterWindow
+- (void) qtRasterWindow
+{
+    [self addChildWindow: new RasterWindow()];
+    [self addChildWindow: new RasterWindow()];
+}
+
+// test RasterWindow that requrests a layer and enables layer mode
+- (void) qtRasterLayerWindow
+{
+    [self addChildWindow: new RasterWindow("_q_mac_wantsLayer")];
+    [self addChildWindow: new RasterWindow("_q_mac_wantsLayer")];
+}
+
+// test QtWidgets
+- (void) qtWidget
+{
+    [self addChildWidget: new RedWidget()];
+    [self addChildWidget: new RedWidget()];
 }
 
 // test steting a mask on a QWindow. Mouse clicks should

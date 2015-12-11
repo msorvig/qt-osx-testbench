@@ -226,10 +226,9 @@ extern bool g_useContainingLayers;
 - (void)updateLayer
 {
 //    qDebug() << "RasterLayerView::updateLayer";
-    QSize contentiSize(200, 200);
-    QImage content(contentiSize, QImage::Format_ARGB32_Premultiplied);
-    QPainter p(&content);
-    p.fillRect(QRect(QPoint(0,0), contentiSize), Qt::red);
+    QSize contentSize(200, 200);
+    int frame = 0;
+    QImage content = drawSimpleImageContent(frame, contentSize);
     self.layer.contents = content.toNSImage();
 }
 

@@ -32,6 +32,7 @@
 ****************************************************************************/
 
 #include "rasterwindow.h"
+#include "glcontent.h"
 
 //#define HAVE_PARTIAL_UPDATE
 
@@ -48,11 +49,12 @@ QColor colorTable[] =
 
 // RasterWidnow is a simple QRasterWindow subclass with
 // full and partial updates.
-RasterWindow::RasterWindow(QRasterWindow *parent)
+RasterWindow::RasterWindow(const QByteArray &property, QRasterWindow *parent)
     : QRasterWindow(parent)
     , m_backgroundColorIndex(0)
     , m_mousePressed(false)
 {
+    setProperty(property.constData(), true);
     initialize();
 }
 
@@ -122,7 +124,5 @@ void RasterWindow::paintEvent(QPaintEvent *event)
     ++m_backgroundColorIndex;
 
     QPainter p(this);
-    QColor backgroundColor = colorTable[m_backgroundColorIndex % (sizeof(colorTable) / sizeof(colorTable[0]))].rgba();
-    p.fillRect(event->rect(), backgroundColor);
-    p.drawText(QPoint(20,20), m_text);
+    drawSimplePainterContent(&p, m_backgroundColorIndex, this->size());
 }

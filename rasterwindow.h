@@ -37,7 +37,7 @@
 class RasterWindow : public QRasterWindow
 {
 public:
-    RasterWindow(QRasterWindow *parent = 0);
+    RasterWindow(const QByteArray &property=QByteArray(), QRasterWindow *parent = 0);
 
 protected:
     void mousePressEvent(QMouseEvent *);

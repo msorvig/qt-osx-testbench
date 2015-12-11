@@ -23,11 +23,16 @@ static QColor colorTable[] =
     QColor("#c0ef8f")
 };
 
+void drawSimplePainterContent(QPainter *p, int frame, QSize size)
+{
+    QColor backgroundColor = colorTable[frame % (sizeof(colorTable) / sizeof(colorTable[0]))].rgba();
+    p->fillRect(QRect(QPoint(), size), backgroundColor);
+}
+
 QImage drawSimpleImageContent(int frame, QSize size)
 {
     QImage image(size, QImage::Format_ARGB32_Premultiplied);
     QPainter p(&image);
-    QColor backgroundColor = colorTable[frame % (sizeof(colorTable) / sizeof(colorTable[0]))].rgba();
-    p.fillRect(QRect(QPoint(), size), backgroundColor);
+    drawSimplePainterContent(&p, frame, size);
     return image;
 }
