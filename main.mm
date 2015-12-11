@@ -201,6 +201,14 @@ NSView *getEmbeddableView(QWindow *qtWindow)
     [self addChildView: [[OpenGLLayerView alloc] init]];
 }
 
+
+- (void) nativeRasterLayer
+{
+    [self addChildView: [[RasterLayerView alloc] init]];
+    [self addChildView: [[RasterLayerView alloc] init]];
+    [self addChildView: [[RasterLayerView alloc] init]];
+}
+
 // test showing several animated QOpenGLWindows. Should animate at 60 fps
 - (void) qtMultiWindowAnimation
 {
