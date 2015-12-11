@@ -2,7 +2,7 @@
 
 void drawSimpleGLContent(int frame)
 {
-    glClearColor(0, 0, 0.5, 0.5);
+    glClearColor(0, 0, 0.5, 1.0);
     glClear(GL_COLOR_BUFFER_BIT);
 
     glColor3f(0.7, 0.4, 0.4);
