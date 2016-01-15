@@ -47,21 +47,26 @@
 #include <qpa/qplatformnativeinterface.h>
 
 // Global Options. These can be tweaked to run the examples/test in different configurations
+int g_activeTestCase = 0;
 
-// Window configuration/hosting options (mutally exclusive, select one)
-bool g_useTopLevelWindows = false; // show each window/view as a top-level window instead
-                                   // of as embedded windows.
-bool g_useChildWindows = false;    // TODO: embed each window/view in a native NSWindow
-bool g_useChildViews = true;       // embed each window/view in a native NSView
+enum QWindowConfiguration
+{
+    TopLevelWindowsAreQNSViews,             // Embed QWindows in a NSView contentview
+    TopLevelWindowsAreTopLevelNSWindows,    // Embed QWindows in a separate NSWindows
+    TopLevelWindowsAreChildNSWindows,       // Embed QWindows in a single NSWindow
+    StandardQWindowShow,                    // Normal QWindow->show() use case
+};
+QWindowConfiguration g_windowConfiguration = TopLevelWindowsAreQNSViews;
 
 bool g_useContainingLayers = true; // use layers for the containing native views --
-                                   // the content and coontroller views)
+                                   // the content and controller views). Since these
+                                   // are parent views of the test views the test views
+                                   // will be switched to layer mode as well.
 
 // Native View animation drivers (mutally exclusive, select one)
 bool g_useNativeAnimationTimer = false; // animate using a timer
 bool g_useNativeAnimationSetNeedsDisplay = false; // animate by calling setNeedsDisplay.
 bool g_useNativeAnimationDisplaylink = true; // animate using CVDisplayLink
-
 
 @interface AppDelegate : NSObject <NSApplicationDelegate> {
     QGuiApplication *m_app;
@@ -72,16 +77,177 @@ bool g_useNativeAnimationDisplaylink = true; // animate using CVDisplayLink
     QWindow *m_qtquickWindow;
 
     QWindow *m_window;
-    NSWindow *m_topLevelWindow;
+    NSWindow *m_topLevelWindow; // _the_ toplevel window (if there is a main one)
+    QList<NSWindow *> m_topLevelNSWindows; // top-level windows for TopLevelWindowsAreNSWindows
+    QList<QWindow *> m_topLevelQWindows; // top-level QWindows for StandardQWindowShow
+    QList<QWidget *> m_topLevelWidgets;
 
     QPoint m_childCascadePoint;
 }
 - (AppDelegate *) initWithArgc:(int)argc argv:(const char **)argv;
+- (void) recreateTestWindow;
 - (void) applicationWillFinishLaunching: (NSNotification *)notification;
 - (void)applicationWillTerminate:(NSNotification *)notification;
 @end
 
-    inline QPlatformNativeInterface::NativeResourceForIntegrationFunction resolvePlatformFunction(const QByteArray &functionName)
+AppDelegate *g_appDelegate = 0;
+NSTextField *g_statusText = 0;
+
+@interface TestBenchControllerView : NSStackView
+{
+
+}
+@end
+
+@implementation TestBenchControllerView
+
+- (id) init
+{
+    [super init];
+    self.orientation = NSUserInterfaceLayoutOrientationVertical;
+    return self;
+}
+
+- (void)changeTestCase:(id)sender {
+    NSButtonCell *selCell = [sender selectedCell];
+    g_activeTestCase = int([selCell tag]);
+    [g_appDelegate recreateTestWindow];
+}
+
+- (void)changeWindowConfiguration:(id)sender {
+    NSButtonCell *selCell = [sender selectedCell];
+    g_windowConfiguration = QWindowConfiguration(int([selCell tag]));
+    [g_appDelegate recreateTestWindow];
+}
+
+- (void)changeContainingLayers:(id)sender {
+    g_useContainingLayers = ([sender state] == NSOnState);
+    [g_appDelegate recreateTestWindow];
+}
+
+- (NSTextField *) addLabel: (NSString *)text
+{
+    NSRect frame = NSMakeRect(0, 0, 200, 25);
+    NSTextField *label = [[NSTextField alloc] initWithFrame:frame];
+    [label setStringValue:text];
+    [label setEditable:NO];
+    [self addControl: label];
+    return label;
+}
+
+- (void) addRadioButtonGroup: (QStringList)texts withActionTarget: (SEL)onSelected
+{
+    NSButtonCell *prototype = [[NSButtonCell alloc] init];
+    [prototype setTitle:@"Placeholder-string-with-sufficent-length-for-all-options"];
+    [prototype setButtonType:NSRadioButton];
+
+    NSRect matrixRect = NSMakeRect(20.0, 20.0, 125.0, 125.0);
+    NSMatrix *myMatrix = [[NSMatrix alloc] initWithFrame:matrixRect
+                                                    mode:NSRadioModeMatrix
+                                               prototype:(NSCell *)prototype
+                                             numberOfRows:texts.count()
+                                          numberOfColumns:1];
+    NSArray *cellArray = [myMatrix cells];
+
+    for (int i = 0; i < texts.count(); ++i) {
+        [[cellArray objectAtIndex:i] setTitle:texts.at(i).toNSString()];
+        [[cellArray objectAtIndex:i] setTag:i];
+    }
+
+    [myMatrix setAction:onSelected];
+    [myMatrix setTarget:self];
+
+    [prototype release];
+    [self addControl: myMatrix];
+    [myMatrix release];
+}
+
+// Add a check box (on by deafault)
+- (void) addCheckBox: (NSString *)text withActionTarget: (SEL)onToggled
+{
+    NSRect frame = NSMakeRect(0, 0, 200, 25);
+    NSButton *button = [[NSButton alloc] initWithFrame:frame];
+    [button setButtonType:NSSwitchButton];
+    [button setTitle:text];
+    [button setState:NSOnState];
+    [button setAction:onToggled];
+    [button setTarget:self];
+
+    [self addControl: button];
+}
+
+- (void) createControllerViewContent
+{
+    [self addLabel:@"Test Case Selection"];
+    QStringList testCases =
+        QStringList() << "Native NSOpenGLView"
+                      << "Native NSView + NSOpenGLContext"
+                      << "Native OpenGLLayer"
+                      << "Native RasterLayer"
+                      << "Qt OpenGLWindow"
+                      << "Qt OpenGLWindow (force layer mode)"
+                      << "Qt RasterWindow"
+                      << "Qt RasterWindow (force layer mode)"
+                      << "Qt Widgets"
+                      << "Qt Masked Window";
+    [self addRadioButtonGroup:testCases
+             withActionTarget:@selector(changeTestCase:)];
+
+    [self addLabel:@"QWindow Configuration"];
+    QStringList windowConfigurations = // (in QWindowConfiguration order)
+        QStringList() << "Child QNSViews"
+                      << "Top-level NSWindows"
+                      << "Child NSWindows"
+                      << "Top-level QNSWindows (Standard Qt config)";
+    [self addRadioButtonGroup:windowConfigurations
+             withActionTarget:@selector(changeWindowConfiguration:)];
+
+    [self addLabel:@"Layers"];
+    [self addCheckBox:@"Force layer mode: Use layers for container views"
+      withActionTarget:@selector(changeContainingLayers:)];
+
+    // status label (store global for later modification)
+    g_statusText = [self addLabel:@"Status: OK"];
+}
+
+- (void)addControl: (NSView *) control
+{
+    control.translatesAutoresizingMaskIntoConstraints = false; // un-break my NSStackView
+    [self addView:control inGravity:NSStackViewGravityTop];
+}
+
+- (void)drawRect: (NSRect)dirtyRect
+{
+    [[NSColor colorWithDeviceRed:0.7 green:0.7 blue:0.7 alpha:1.0] setFill];
+    NSRectFill(dirtyRect);
+    [super drawRect:dirtyRect];
+}
+
+@end
+
+// creates and shows a window for run-time configuration of test bench options
+void createControllerWindow()
+{
+    NSRect frame = NSMakeRect(40, 40, 300, 800);
+    NSWindow *window =
+        [[NSWindow alloc] initWithContentRect:frame
+                                     styleMask:NSTitledWindowMask | NSClosableWindowMask |
+                                               NSMiniaturizableWindowMask | NSResizableWindowMask
+                                       backing:NSBackingStoreBuffered
+                                         defer:NO];
+
+    NSString *title = @"Test Bench Controller";
+    [window setTitle:title];
+    [window setBackgroundColor:[NSColor blueColor]];
+
+    TestBenchControllerView *view = [[TestBenchControllerView alloc] init];
+    [view createControllerViewContent];
+    window.contentView = view;
+    [window makeKeyAndOrderFront:nil];
+}
+
+
+inline QPlatformNativeInterface::NativeResourceForIntegrationFunction resolvePlatformFunction(const QByteArray &functionName)
 {
     QPlatformNativeInterface *nativeInterface = QGuiApplication::platformNativeInterface();
     QPlatformNativeInterface::NativeResourceForIntegrationFunction function =
@@ -119,13 +285,17 @@ NSView *getEmbeddableView(QWindow *qtWindow)
     m_qtquickWindow = 0;
     m_window = 0;
     m_topLevelWindow = 0;
+
+    g_appDelegate = self;
+
     return self;
 }
 
 - (void) addChildView: (NSView *) view
 {
-    // handle cases that embeds the view in its own window
-    if (g_useChildWindows || g_useTopLevelWindows) {
+    // handle cases that embeds each view in its own NSWindow
+    if (g_windowConfiguration == TopLevelWindowsAreTopLevelNSWindows ||
+        g_windowConfiguration == TopLevelWindowsAreChildNSWindows) {
         NSRect frame = NSMakeRect(0, 0, 200, 100);
         NSWindow *window =
             [[NSWindow alloc] initWithContentRect:frame
@@ -135,9 +305,10 @@ NSView *getEmbeddableView(QWindow *qtWindow)
                                              defer:NO];
         [window setContentView:view];
 
-        if (g_useTopLevelWindows) {
+        if (g_windowConfiguration == TopLevelWindowsAreTopLevelNSWindows) {
             [window makeKeyAndOrderFront:nil];
-        } else {
+            m_topLevelNSWindows.append(window);
+        } else { // TopLevelWindowsAreChildNSWindows
             [m_topLevelWindow addChildWindow:window ordered:NSWindowAbove];
         }
     } else {
@@ -151,7 +322,8 @@ NSView *getEmbeddableView(QWindow *qtWindow)
 
 - (void) addChildWindow: (QWindow *) window
 {
-    if (g_useTopLevelWindows) {
+    if (g_windowConfiguration == StandardQWindowShow) {
+        m_topLevelQWindows.append(window);
         window->show();
         return;
     }
@@ -163,20 +335,22 @@ NSView *getEmbeddableView(QWindow *qtWindow)
 
 - (void) addChildWidget: (QWidget *) widget
 {
+    if (g_windowConfiguration == StandardQWindowShow) {
+        m_topLevelWidgets.append(widget);
+        widget->show();
+        return;
+    }
+
     widget->winId(); // create, ### fixme
     [self addChildWindow: widget->windowHandle()];
     widget->show(); // ### fixme
 }
 
-// test showing several animated OpenGL views, along with a QWidget window.
-// The OpenGL views should animate at 60 fps.
+// test showing several animated OpenGL views
 - (void) nativeNSOpenGLView
 {
     [self addChildView: [[AnimatedOpenGLVew alloc] init]];
     [self addChildView: [[AnimatedOpenGLVew alloc] init]];
-    [self addChildView: [[AnimatedOpenGLVew alloc] init]];
-
-    [self addChildWidget: new RedWidget()];
 }
 
 // test showing a NSview with an attached OpenGL context.
@@ -187,7 +361,6 @@ NSView *getEmbeddableView(QWindow *qtWindow)
     // draw using the layer's context. NSOpenGLView handles this transition
     // transparently to the user.
     //
-    // g_useTopLevelWindows also makes this work.
 
     [self addChildView: [[OpenGLNSView alloc] init]];
     [self addChildView: [[OpenGLNSView alloc] init]];
@@ -251,13 +424,29 @@ NSView *getEmbeddableView(QWindow *qtWindow)
     widget->windowHandle()->setMask(QRegion(QRect(0,0, 200, 75)));
 }
 
-- (void) applicationWillFinishLaunching: (NSNotification *)notification
+- (void) recreateTestWindow
 {
-    Q_UNUSED(notification);
+    // Destroy current test window(s)
+    [m_topLevelWindow release];
+    m_topLevelWindow = 0;
+    foreach(NSWindow *window, m_topLevelNSWindows) {
+        [window release];
+    }
+    m_topLevelNSWindows.clear();
+    foreach(QWindow *window, m_topLevelQWindows) {
+        delete window;
+    }
+    m_topLevelQWindows.clear();
+    foreach(QWidget *widget, m_topLevelWidgets) {
+        delete widget;
+    }
+    m_topLevelWidgets.clear();
 
-    // Create the NSWindow
+    m_childCascadePoint = QPoint(0,0);
+
+    // Create new test window(s)
     NSRect frame = NSMakeRect(500, 500, 500, 500);
-    NSWindow *window = 
+    NSWindow *window =
         [[NSWindow alloc] initWithContentRect:frame
                                      styleMask:NSTitledWindowMask | NSClosableWindowMask |
                                                NSMiniaturizableWindowMask | NSResizableWindowMask
@@ -273,19 +462,45 @@ NSView *getEmbeddableView(QWindow *qtWindow)
     [window setContentView: contentView];
     [window makeFirstResponder: contentView];
 
-    // Select test/example:
+    // Select test case
+    switch (g_activeTestCase) {
+        case 0: [self nativeNSOpenGLView]; break;
+        case 1: [self nativeOpenGLNSView]; break;
+        case 2: [self nativeOpenGLLayer]; break;
+        case 3: [self nativeRasterLayer]; break;
+        case 4: [self qtOpenGLWindow]; break;
+        case 5: [self qtOpenGLLayerWindow]; break;
+        case 6: [self qtRasterWindow]; break;
+        case 7: [self qtRasterLayerWindow]; break;
+        case 8: [self qtWidget]; break;
+        case 9: [self maskedWindow]; break;
+        default: break;
+    }
 
-    [self nativeNSOpenGLView];
-//    [self nativeOpenGLNSView];
-//    [self nativeOpenGLLayer];
-
-//    [self qtMultiWindowAnimation];
-//    [self qtLayerOpenGLWindow];
-//    [self maskedWindow];
-
-    // Show the top-level NSWindow
-    if (!g_useTopLevelWindows)
+    // Show the top-level NSWindow for configs that have a single top-level window
+    if (g_windowConfiguration == TopLevelWindowsAreQNSViews ||
+        g_windowConfiguration == TopLevelWindowsAreChildNSWindows)
         [window makeKeyAndOrderFront:NSApp];
+
+    // Show status messages for known bad configurations
+    if (g_activeTestCase == 1 /*"Native NSView + NSOpenGLView"*/ && g_useContainingLayers) {
+        [g_statusText setStringValue:@"Bad Config: NSView + NSGLContext in layer mode"];
+        g_statusText.backgroundColor = [NSColor redColor];
+    } else {
+        [g_statusText setStringValue:@"Status: OK"];
+        g_statusText.backgroundColor = [NSColor whiteColor];
+    }
+}
+
+- (void) applicationWillFinishLaunching: (NSNotification *)notification
+{
+    Q_UNUSED(notification);
+
+    // Create the controller window with test selection and config
+    createControllerWindow();
+
+    // Create the test windows
+    [self recreateTestWindow];
 }
 
 - (void)applicationWillTerminate:(NSNotification *)notification
@@ -300,9 +515,6 @@ NSView *getEmbeddableView(QWindow *qtWindow)
 
 int main(int argc, const char *argv[])
 {
-    // Optionally test a layer-backed Qt view
-    //qputenv("QT_MAC_WANTS_LAYER", "1");
-    
     // Create NSApplicaiton with delgate
     NSApplication *app =[NSApplication sharedApplication];
     app.delegate = [[AppDelegate alloc] initWithArgc:argc argv:argv];
