@@ -7,11 +7,11 @@
 
 extern bool g_useContainingLayers;
 
-@implementation NativeCocoaView
+@implementation TestBenchContentView
 
 - (id) init
 {
-    [super init];
+    [super initWithFrame: NSMakeRect(0, 0, 1, 1)];
     if (g_useContainingLayers)
         [self setWantsLayer: true];
     return self;
@@ -50,13 +50,14 @@ extern bool g_useContainingLayers;
 
 @end
 
-
-@implementation ControllerView
+@implementation TestBenchMDIView
 
 - (id)initWithView: (NSView *) view
 {
-    [super init];
-    [self init];
+    [super initWithFrame: NSMakeRect(0, 0, 1, 1)];
+
+    if (g_useContainingLayers)
+        [self setWantsLayer: true];
 
     controlledView = view;
     [self addSubview: view];
@@ -72,13 +73,6 @@ extern bool g_useContainingLayers;
                                                                        options:0
                                                                        metrics:nil
                                                                        views:views]];
-    return self;
-}
-- (id)init
-{
-    [super init];
-    if (g_useContainingLayers)
-        [self setWantsLayer: true];
     return self;
 }
 
@@ -193,7 +187,7 @@ extern bool g_useContainingLayers;
 
 - (id)init
 {
-    [super init];
+    [super initWithFrame: NSMakeRect(0, 0, 1, 1)];
     [self setWantsLayer: true];
 
     // RasterLayerView supports two modes: either (1) use the standard backing
@@ -412,7 +406,7 @@ CVReturn mainThreadTimerFireCallback(CVDisplayLinkRef displayLink, const CVTimeS
 {
     frame = 0;
 
-    [super init];
+    [super initWithFrame: NSMakeRect(0, 0, 1, 1)];
 
     NSOpenGLPixelFormatAttribute attributes [] =
     {

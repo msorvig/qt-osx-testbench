@@ -35,8 +35,8 @@
 #include "openglwindow.h"
 #include "widgetwindow.h"
 #include "openglwindowresize.h"
-#import "nativecocoaview.h"
-
+#include "nativecocoaview.h"
+#include "cocoaspy.h"
 
 #include <QtGui>
 #include <QtWidgets>
@@ -46,9 +46,16 @@
 
 #include <qpa/qplatformnativeinterface.h>
 
+//
 // Global Options. These can be tweaked to run the examples/test in different configurations
-int g_activeTestCase = 0;
+//
 
+int g_activeTestCase = 0; // The currently active test case (index)
+int g_testViewCount = 1; // The number of test views to display
+
+// QWindow configuration. This is a fuzzy concept (especially for the native view
+// test cases where there is no QWindow). The point is to test the setups a QNSView
+// may find itself in.
 enum QWindowConfiguration
 {
     TopLevelWindowsAreQNSViews,             // Embed QWindows in a NSView contentview
@@ -70,13 +77,8 @@ bool g_useNativeAnimationDisplaylink = true; // animate using CVDisplayLink
 
 @interface AppDelegate : NSObject <NSApplicationDelegate> {
     QGuiApplication *m_app;
-    QWidget *m_widget;
-    QWindow *m_rasterWindow;
-    QWindow *m_openglWindow;
-    QWindow *m_openglWindowResize;
     QWindow *m_qtquickWindow;
 
-    QWindow *m_window;
     NSWindow *m_topLevelWindow; // _the_ toplevel window (if there is a main one)
     QList<NSWindow *> m_topLevelNSWindows; // top-level windows for TopLevelWindowsAreNSWindows
     QList<QWindow *> m_topLevelQWindows; // top-level QWindows for StandardQWindowShow
@@ -92,6 +94,7 @@ bool g_useNativeAnimationDisplaylink = true; // animate using CVDisplayLink
 
 AppDelegate *g_appDelegate = 0;
 NSTextField *g_statusText = 0;
+NSTextField *g_nativeInstanceStatus = 0;
 
 @interface TestBenchControllerView : NSStackView
 {
@@ -208,6 +211,11 @@ NSTextField *g_statusText = 0;
 
     // status label (store global for later modification)
     g_statusText = [self addLabel:@"Status: OK"];
+
+
+    QString nativeInstanceStatius = "NSWindow Count:"; // will be completed later
+    g_nativeInstanceStatus = [self addLabel:nativeInstanceStatius.toNSString()];
+
 }
 
 - (void)addControl: (NSView *) control
@@ -279,11 +287,6 @@ NSView *getEmbeddableView(QWindow *qtWindow)
 - (AppDelegate *) initWithArgc:(int)argc argv:(const char **)argv
 {
     m_app = new QApplication(argc, const_cast<char **>(argv));
-    m_widget = 0;
-    m_rasterWindow = 0;
-    m_openglWindow = 0;
-    m_qtquickWindow = 0;
-    m_window = 0;
     m_topLevelWindow = 0;
 
     g_appDelegate = self;
@@ -313,7 +316,7 @@ NSView *getEmbeddableView(QWindow *qtWindow)
         }
     } else {
         // Add controller view for child view
-        NSView *controllerView = [[ControllerView alloc] initWithView: view];
+        NSView *controllerView = [[TestBenchMDIView alloc] initWithView: view];
         m_childCascadePoint += QPoint(50, 50);
         [controllerView setFrame : NSMakeRect(m_childCascadePoint.x(), m_childCascadePoint.y(), 300, 300)];
         [[m_topLevelWindow contentView] addSubview : controllerView];
@@ -349,8 +352,8 @@ NSView *getEmbeddableView(QWindow *qtWindow)
 // test showing several animated OpenGL views
 - (void) nativeNSOpenGLView
 {
-    [self addChildView: [[AnimatedOpenGLVew alloc] init]];
-    [self addChildView: [[AnimatedOpenGLVew alloc] init]];
+    for (int i = 0; i < g_testViewCount; ++i)
+        [self addChildView: [[AnimatedOpenGLVew alloc] init]];
 }
 
 // test showing a NSview with an attached OpenGL context.
@@ -362,66 +365,68 @@ NSView *getEmbeddableView(QWindow *qtWindow)
     // transparently to the user.
     //
 
-    [self addChildView: [[OpenGLNSView alloc] init]];
-    [self addChildView: [[OpenGLNSView alloc] init]];
+    for (int i = 0; i < g_testViewCount; ++i)
+        [self addChildView: [[OpenGLNSView alloc] init]];
 }
 
 // test showing a NSView with a custom NSOpenGLLayer layer
 - (void) nativeOpenGLLayer
 {
-    [self addChildView: [[OpenGLLayerView alloc] init]];
-    [self addChildView: [[OpenGLLayerView alloc] init]];
+    for (int i = 0; i < g_testViewCount; ++i)
+        [self addChildView: [[OpenGLLayerView alloc] init]];
 }
 
 // test showing a NSView with raster layer content
 - (void) nativeRasterLayer
 {
-    [self addChildView: [[RasterLayerView alloc] init]];
-    [self addChildView: [[RasterLayerView alloc] init]];
+    for (int i = 0; i < g_testViewCount; ++i)
+        [self addChildView: [[RasterLayerView alloc] init]];
 }
 
 // test QOpenGLWindow.
 - (void) qtOpenGLWindow
 {
-    [self addChildWindow: new OpenGLWindow()];
-    [self addChildWindow: new OpenGLWindow()];
+    for (int i = 0; i < g_testViewCount; ++i)
+        [self addChildWindow: new OpenGLWindow()];
 }
 
 // test QOpenGLWindow that requests a layer and enables layer mode
 - (void) qtOpenGLLayerWindow
 {
-    [self addChildWindow: new OpenGLWindow("_q_mac_wantsLayer")];
-    [self addChildWindow: new OpenGLWindow("_q_mac_wantsLayer")];
+    for (int i = 0; i < g_testViewCount; ++i)
+        [self addChildWindow: new OpenGLWindow("_q_mac_wantsLayer")];
 }
 
 // test RasterWindow
 - (void) qtRasterWindow
 {
-    [self addChildWindow: new RasterWindow()];
-    [self addChildWindow: new RasterWindow()];
+    for (int i = 0; i < g_testViewCount; ++i)
+        [self addChildWindow: new RasterWindow()];
 }
 
 // test RasterWindow that requrests a layer and enables layer mode
 - (void) qtRasterLayerWindow
 {
-    [self addChildWindow: new RasterWindow("_q_mac_wantsLayer")];
-    [self addChildWindow: new RasterWindow("_q_mac_wantsLayer")];
+    for (int i = 0; i < g_testViewCount; ++i)
+        [self addChildWindow: new RasterWindow("_q_mac_wantsLayer")];
 }
 
 // test QtWidgets
 - (void) qtWidget
 {
-    [self addChildWidget: new RedWidget()];
-    [self addChildWidget: new RedWidget()];
+    for (int i = 0; i < g_testViewCount; ++i)
+        [self addChildWidget: new RedWidget()];
 }
 
 // test steting a mask on a QWindow. Mouse clicks should
 // "click through" for the masked region.
 - (void) maskedWindow
 {
-    QWidget *widget = new RedWidget();
-    [self addChildWidget: widget];
-    widget->windowHandle()->setMask(QRegion(QRect(0,0, 200, 75)));
+    for (int i = 0; i < g_testViewCount; ++i) {
+        QWidget *widget = new RedWidget();
+        [self addChildWidget: widget];
+        widget->windowHandle()->setMask(QRegion(QRect(0,0, 200, 75)));
+    }
 }
 
 - (void) recreateTestWindow
@@ -444,6 +449,9 @@ NSView *getEmbeddableView(QWindow *qtWindow)
 
     m_childCascadePoint = QPoint(0,0);
 
+    // Reset native instance counter
+    QCocoaSpy::reset();
+
     // Create new test window(s)
     NSRect frame = NSMakeRect(500, 500, 500, 500);
     NSWindow *window =
@@ -458,9 +466,11 @@ NSView *getEmbeddableView(QWindow *qtWindow)
     [window setTitle:title];
     [window setBackgroundColor:[NSColor blueColor]];
 
-    NSView *contentView = [[NativeCocoaView alloc] init];
-    [window setContentView: contentView];
-    [window makeFirstResponder: contentView];
+    NSView *contentView = [[TestBenchContentView alloc] init];
+    [window setContentView:contentView];
+    [window makeFirstResponder:contentView];
+    [contentView release];
+    contentView = 0;
 
     // Select test case
     switch (g_activeTestCase) {
@@ -479,8 +489,13 @@ NSView *getEmbeddableView(QWindow *qtWindow)
 
     // Show the top-level NSWindow for configs that have a single top-level window
     if (g_windowConfiguration == TopLevelWindowsAreQNSViews ||
-        g_windowConfiguration == TopLevelWindowsAreChildNSWindows)
+        g_windowConfiguration == TopLevelWindowsAreChildNSWindows) {
         [window makeKeyAndOrderFront:NSApp];
+    } else {
+        // else the window is not in use.
+        [window release];
+        m_topLevelWindow = 0;
+    }
 
     // Show status messages for known bad configurations
     if (g_activeTestCase == 1 /*"Native NSView + NSOpenGLView"*/ && g_useContainingLayers) {
@@ -490,11 +505,61 @@ NSView *getEmbeddableView(QWindow *qtWindow)
         [g_statusText setStringValue:@"Status: OK"];
         g_statusText.backgroundColor = [NSColor whiteColor];
     }
+
+
+#if 0
+    // Optionally print view hiearchy with [NSView _subtreeDescription]
+    if (m_topLevelWindow) {
+        NSString *subtree = [m_topLevelWindow.contentView _subtreeDescription];
+        qDebug() <<  QString::fromNSString(subtree);
+    }
+#endif
+
+    // Update status message view NSWindow and NSView instance stats.
+    QString nativeStatus;
+
+    nativeStatus += "NSWindow count: " + QString::number(QCocoaSpy::windowCount()) + "\n";
+    for (int i = 0; i < QCocoaSpy::windowCount(); ++i) {
+        NSWindow *window = QCocoaSpy::window(i);
+        nativeStatus += "  #" + QString::number(i);
+        nativeStatus += " Class \'" + QString::fromNSString(NSStringFromClass([window class]));
+        nativeStatus += " Title \'" + QString::fromNSString(window.title) + "\'\n";
+    }
+
+    // Filter out some uninteresting views (NSWindow title bar views etc)
+    QList<NSView *> filteredViews;
+    for (int i = 0; i < QCocoaSpy::viewCount(); ++i) {
+        NSView *view = QCocoaSpy::view(i);
+        QString className = QString::fromNSString(NSStringFromClass([view class]));
+        // theme and title bar
+        if (className.startsWith("_NSTheme") || className.startsWith("NSTheme") || className.startsWith("NSTitlebar"))
+            continue;
+        // more title bar (?) ### filter by hiearchy instead
+        if (className.startsWith("NSView") || className.startsWith("NSTextField"))
+            continue;
+
+        filteredViews.append(view);
+    }
+
+    nativeStatus += "NSView count: " + QString::number(QCocoaSpy::viewCount());
+    nativeStatus += " (filtered: " + QString::number(filteredViews.count()) + ")\n";
+
+    const int maxViewListingSize = 15;
+    for (int i = 0; i < qMin(maxViewListingSize, filteredViews.count()); ++i) {
+        NSView *view = filteredViews.at(i);
+        nativeStatus += "  #" + QString::number(i);
+        nativeStatus += " Class \'" + QString::fromNSString(NSStringFromClass([view class])) + "'\n";
+    }
+
+    [g_nativeInstanceStatus setStringValue:nativeStatus.toNSString()];
 }
 
 - (void) applicationWillFinishLaunching: (NSNotification *)notification
 {
     Q_UNUSED(notification);
+
+    // Install NSWindow and NSView instance monitor
+    QCocoaSpy::init();
 
     // Create the controller window with test selection and config
     createControllerWindow();
@@ -506,8 +571,8 @@ NSView *getEmbeddableView(QWindow *qtWindow)
 - (void)applicationWillTerminate:(NSNotification *)notification
 {
     Q_UNUSED(notification);
-    delete m_window;
-    delete m_widget;
+
+    QCocoaSpy::reset();
     delete m_app;
 }
 
@@ -520,6 +585,3 @@ int main(int argc, const char *argv[])
     app.delegate = [[AppDelegate alloc] initWithArgc:argc argv:argv];
     return NSApplicationMain (argc, argv);
 }
-
-
-

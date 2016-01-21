@@ -4,7 +4,7 @@
 
 // A Simple NSView that fills with solid color and prints
 // Mouse and Keyboard events.
-@interface NativeCocoaView : NSView
+@interface TestBenchContentView : NSView
 {
 
 }
@@ -12,7 +12,7 @@
 
 // A "window manager" view that gives the contained
 // a border for dragging and resizing
-@interface ControllerView : NSView
+@interface TestBenchMDIView : NSView
 {
     NSView *controlledView;
     bool isMove;

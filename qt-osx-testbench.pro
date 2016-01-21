@@ -10,6 +10,7 @@ HEADERS += \
     openglwindowresize.h \
     rasterwindow.h \
     widgetwindow.h \
+    cocoaspy.h \
 
 SOURCES += \
     glcontent.cpp \
@@ -21,5 +22,6 @@ SOURCES += \
 OBJECTIVE_SOURCES += \
     main.mm \
     nativecocoaview.mm \
+    cocoaspy.mm \
 
 LIBS += -framework AppKit -framework QuartzCore
