@@ -467,3 +467,36 @@ CVReturn mainThreadTimerFireCallback(CVDisplayLinkRef displayLink, const CVTimeS
 
 @end
 
+@implementation Native120fpsView : NSView
+
+- (id) init
+{
+    [super initWithFrame: NSMakeRect(0, 0, 1, 1)];
+
+    NSTimer *timer = [NSTimer scheduledTimerWithTimeInterval:1.0 / 120.0
+                                                      target:self
+                                                    selector:@selector(syncPaint:)
+                                                    userInfo:nil
+                                                     repeats:YES];
+    [timer fire];
+    return self;
+}
+
+- (void) syncPaint:(NSTimer *)timer
+{
+    Q_UNUSED(timer);
+    [self setNeedsDisplay:YES];
+    if (self.window.isVisible)
+        [self displayIfNeeded];
+}
+
+- (void)drawRect: (NSRect)dirtyRect
+{
+    [[NSColor colorWithDeviceRed:0.5 green:0.2 blue:0.2 alpha:1.0] setFill];
+    NSRectFill(dirtyRect);
+    [super drawRect:dirtyRect];
+}
+
+@end
+
+

@@ -53,3 +53,11 @@
     int frame;
 }
 @end
+
+// A view that tries to draw at 120 fps.
+@interface Native120fpsView : NSView
+{
+
+}
+@end
+

@@ -187,6 +187,7 @@ NSTextField *g_nativeInstanceStatus = 0;
                       << "Native NSView + NSOpenGLContext"
                       << "Native OpenGLLayer"
                       << "Native RasterLayer"
+                      << "Native 120fps view"
                       << "Qt OpenGLWindow"
                       << "Qt OpenGLWindow (force layer mode)"
                       << "Qt RasterWindow"
@@ -383,6 +384,20 @@ NSView *getEmbeddableView(QWindow *qtWindow)
         [self addChildView: [[RasterLayerView alloc] init]];
 }
 
+// test showing a NSView animating on a 120 fps timer
+- (void) native120fpsView
+{
+    // Findings:
+    //  - Works (surprisingly) well for a single view
+    //  - With 2 or 3 views we are starting to see blocking in displayIfNeeded.
+    //    Updating the view geometry is sluggish.
+    //  - Enabling layer mode has similar blocking. However, the visual output
+    //    is better with smoother resizing.
+    //
+    for (int i = 0; i < g_testViewCount; ++i)
+        [self addChildView: [[Native120fpsView alloc] init]];
+}
+
 // test QOpenGLWindow.
 - (void) qtOpenGLWindow
 {
@@ -478,12 +493,13 @@ NSView *getEmbeddableView(QWindow *qtWindow)
         case 1: [self nativeOpenGLNSView]; break;
         case 2: [self nativeOpenGLLayer]; break;
         case 3: [self nativeRasterLayer]; break;
-        case 4: [self qtOpenGLWindow]; break;
-        case 5: [self qtOpenGLLayerWindow]; break;
-        case 6: [self qtRasterWindow]; break;
-        case 7: [self qtRasterLayerWindow]; break;
-        case 8: [self qtWidget]; break;
-        case 9: [self maskedWindow]; break;
+        case 4: [self native120fpsView]; break;
+        case 5: [self qtOpenGLWindow]; break;
+        case 6: [self qtOpenGLLayerWindow]; break;
+        case 7: [self qtRasterWindow]; break;
+        case 8: [self qtRasterLayerWindow]; break;
+        case 9: [self qtWidget]; break;
+        case 10: [self maskedWindow]; break;
         default: break;
     }
 
@@ -515,7 +531,7 @@ NSView *getEmbeddableView(QWindow *qtWindow)
     }
 #endif
 
-    // Update status message view NSWindow and NSView instance stats.
+    // Update status message view with NSWindow and NSView instance stats.
     QString nativeStatus;
 
     nativeStatus += "NSWindow count: " + QString::number(QCocoaSpy::windowCount()) + "\n";
