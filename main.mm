@@ -193,7 +193,8 @@ NSTextField *g_nativeInstanceStatus = 0;
                       << "Qt RasterWindow"
                       << "Qt RasterWindow (force layer mode)"
                       << "Qt Widgets"
-                      << "Qt Masked Window";
+                      << "Qt Masked Window"
+                      << "The Mix";
     [self addRadioButtonGroup:testCases
              withActionTarget:@selector(changeTestCase:)];
 
@@ -444,6 +445,16 @@ NSView *getEmbeddableView(QWindow *qtWindow)
     }
 }
 
+- (void) theMix
+{
+    for (int i = 0; i < g_testViewCount; ++i) {
+        [self addChildView: [[AnimatedOpenGLVew alloc] init]];
+        [self addChildWindow: new RasterWindow()];
+        [self addChildWindow: new OpenGLWindow()];
+        [self addChildWidget: new RedWidget()];
+    }
+}
+
 - (void) recreateTestWindow
 {
     // Destroy current test window(s)
@@ -500,6 +511,7 @@ NSView *getEmbeddableView(QWindow *qtWindow)
         case 8: [self qtRasterLayerWindow]; break;
         case 9: [self qtWidget]; break;
         case 10: [self maskedWindow]; break;
+        case 11: [self theMix]; break;
         default: break;
     }
 
