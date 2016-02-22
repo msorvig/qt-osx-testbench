@@ -2,6 +2,8 @@
 #include "openglwindow.h"
 #include "glcontent.h"
 
+extern bool g_animate;
+
 OpenGLWindow::OpenGLWindow(const QByteArray &property)
     : QOpenGLWindow(QOpenGLWindow::NoPartialUpdate)
 {
@@ -12,9 +14,11 @@ OpenGLWindow::OpenGLWindow(const QByteArray &property)
 void OpenGLWindow::paintGL()
 {
 //    qDebug() << "paintGL" << this;
-    ++frame;
     drawSimpleGLContent(frame);
-    update();
+    if (g_animate) {
+        ++frame;
+        update();
+    }
 }
 
 void OpenGLWindow::resizeGL(int w, int h)

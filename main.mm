@@ -36,11 +36,13 @@
 #include "widgetwindow.h"
 #include "openglwindowresize.h"
 #include "nativecocoaview.h"
+#include "qtcontent.h"
 #include "cocoaspy.h"
 
 #include <QtGui>
 #include <QtWidgets>
 #include <QtQuick>
+#include <QQuickWidget>
 
 #import <Cocoa/Cocoa.h>
 
@@ -52,6 +54,7 @@
 
 int g_activeTestCase = 0; // The currently active test case (index)
 int g_testViewCount = 1; // The number of test views to display
+bool g_animate = true; // animations enabled
 
 // QWindow configuration. This is a fuzzy concept (especially for the native view
 // test cases where there is no QWindow). The point is to test the setups a QNSView
@@ -96,6 +99,40 @@ AppDelegate *g_appDelegate = 0;
 NSTextField *g_statusText = 0;
 NSTextField *g_nativeInstanceStatus = 0;
 
+
+
+@interface NotifyingIntField : NSTextField<NSTextFieldDelegate>
+{
+    void (^changeCallback)(int);
+}
+- (void) setCallback:(void (^)(int))changed;
+@end
+
+@implementation NotifyingIntField
+- (id)init
+{
+    NSRect frame = NSMakeRect(0, 0, 200, 25);
+    [super initWithFrame:frame];
+    [self setDelegate:self];
+    return self;
+}
+
+- (void) setCallback:(void (^)(int))changed
+{
+    changeCallback = changed;
+}
+
+- (void)controlTextDidChange:(NSNotification *)notification
+{
+    NSTextField *textField = [notification object];
+    int newValue = [textField intValue];
+
+    if (newValue > 0) // we get 0 on parse error: ignore
+        changeCallback(newValue);
+}
+
+@end
+
 @interface TestBenchControllerView : NSStackView
 {
 
@@ -128,10 +165,19 @@ NSTextField *g_nativeInstanceStatus = 0;
     [g_appDelegate recreateTestWindow];
 }
 
+- (void)changeAnimate:(id)sender {
+    g_animate = ([sender state] == NSOnState);
+    // Don't [g_appDelegate recreateTestWindow]. Test cases read g_animate continuously.
+}
+
+- (void)changeInstanceCount:(int)newInstanceCount {
+    g_testViewCount = newInstanceCount;
+   [g_appDelegate recreateTestWindow];
+}
+
 - (NSTextField *) addLabel: (NSString *)text
 {
-    NSRect frame = NSMakeRect(0, 0, 200, 25);
-    NSTextField *label = [[NSTextField alloc] initWithFrame:frame];
+    NSTextField *label = [[NSTextField alloc] init];
     [label setStringValue:text];
     [label setEditable:NO];
     [self addControl: label];
@@ -161,7 +207,7 @@ NSTextField *g_nativeInstanceStatus = 0;
     [myMatrix setTarget:self];
 
     [prototype release];
-    [self addControl: myMatrix];
+    [self addControl:myMatrix];
     [myMatrix release];
 }
 
@@ -176,7 +222,23 @@ NSTextField *g_nativeInstanceStatus = 0;
     [button setAction:onToggled];
     [button setTarget:self];
 
-    [self addControl: button];
+    [self addControl:button];
+}
+
+TestBenchControllerView *theControllerViewHack = 0; // There is only one, so OK.
+
+- (void) addNumberInput:(NSString *)text withActionTarget:(SEL)onChanged
+{
+    NotifyingIntField *textField = [[NotifyingIntField alloc] init];
+    [textField setStringValue:text];
+
+    theControllerViewHack = self; // ### why does use of captured self crash?
+
+    [textField setCallback:^void(int newValue) {
+        [theControllerViewHack changeInstanceCount:newValue];
+    }];
+
+    [self addControl:textField];
 }
 
 - (void) createControllerViewContent
@@ -194,6 +256,9 @@ NSTextField *g_nativeInstanceStatus = 0;
                       << "Qt RasterWindow (force layer mode)"
                       << "Qt Widgets"
                       << "Qt Masked Window"
+                      << "Qt QtQuickWindow"
+                      << "Qt QOpenGLWidget"
+                      << "Qt QtQuickWidget"
                       << "The Mix";
     [self addRadioButtonGroup:testCases
              withActionTarget:@selector(changeTestCase:)];
@@ -207,13 +272,17 @@ NSTextField *g_nativeInstanceStatus = 0;
     [self addRadioButtonGroup:windowConfigurations
              withActionTarget:@selector(changeWindowConfiguration:)];
 
-    [self addLabel:@"Layers"];
+    [self addLabel:@"Options"];
     [self addCheckBox:@"Force layer mode: Use layers for container views"
       withActionTarget:@selector(changeContainingLayers:)];
+    [self addCheckBox:@"Animate"
+     withActionTarget:@selector(changeAnimate:)];
+    [self addLabel:@"Instance Count"];
+    [self addNumberInput:@"1"
+        withActionTarget:@selector(changeInstanceCount:)];
 
     // status label (store global for later modification)
     g_statusText = [self addLabel:@"Status: OK"];
-
 
     QString nativeInstanceStatius = "NSWindow Count:"; // will be completed later
     g_nativeInstanceStatus = [self addLabel:nativeInstanceStatius.toNSString()];
@@ -345,7 +414,6 @@ NSView *getEmbeddableView(QWindow *qtWindow)
         widget->show();
         return;
     }
-
     widget->winId(); // create, ### fixme
     [self addChildWindow: widget->windowHandle()];
     widget->show(); // ### fixme
@@ -445,6 +513,32 @@ NSView *getEmbeddableView(QWindow *qtWindow)
     }
 }
 
+- (void) qtQuickWindow
+{
+    for (int i = 0; i < g_testViewCount; ++i) {
+        QQuickView *view = new QQuickView;
+        view->setSource(QUrl::fromLocalFile("../../../main.qml"));
+        [self addChildWindow: view];
+    }
+}
+
+- (void) qtOpenGLWidget
+{
+    for (int i = 0; i < g_testViewCount; ++i) {
+        QtOpenGLWidget *openglWidget = new QtOpenGLWidget();
+        [self addChildWidget: openglWidget];
+    }
+}
+
+- (void) qtQuickWidget
+{
+    for (int i = 0; i < g_testViewCount; ++i) {
+        QQuickWidget *quickWidget = new QQuickWidget;
+        quickWidget->setSource(QUrl::fromLocalFile("../../../main.qml"));
+        [self addChildWidget: quickWidget];
+    }
+}
+
 - (void) theMix
 {
     for (int i = 0; i < g_testViewCount; ++i) {
@@ -511,7 +605,10 @@ NSView *getEmbeddableView(QWindow *qtWindow)
         case 8: [self qtRasterLayerWindow]; break;
         case 9: [self qtWidget]; break;
         case 10: [self maskedWindow]; break;
-        case 11: [self theMix]; break;
+        case 11: [self qtQuickWindow]; break;
+        case 12: [self qtOpenGLWidget]; break;
+        case 13: [self qtQuickWidget]; break;
+        case 15: [self theMix]; break;
         default: break;
     }
 
@@ -608,6 +705,10 @@ NSView *getEmbeddableView(QWindow *qtWindow)
 
 int main(int argc, const char *argv[])
 {
+    // Work with the Gui thread render loop for now.
+    qDebug() << "qputenv(\"QSG_RENDER_LOOP\", \"basic\");";
+    qputenv("QSG_RENDER_LOOP", "basic");
+
     // Create NSApplicaiton with delgate
     NSApplication *app =[NSApplication sharedApplication];
     app.delegate = [[AppDelegate alloc] initWithArgc:argc argv:argv];

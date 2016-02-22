@@ -1,6 +1,6 @@
 TEMPLATE = app
 
-QT += gui widgets quick gui_private
+QT += gui widgets quick gui_private quickwidgets
 
 CONFIG += c++11
 
@@ -11,6 +11,7 @@ HEADERS += \
     rasterwindow.h \
     widgetwindow.h \
     cocoaspy.h \
+    qtcontent.h
 
 SOURCES += \
     glcontent.cpp \
@@ -18,6 +19,7 @@ SOURCES += \
     openglwindowresize.cpp \
     rasterwindow.cpp \
     widgetwindow.cpp \
+    qtcontent.cpp
 
 OBJECTIVE_SOURCES += \
     main.mm \

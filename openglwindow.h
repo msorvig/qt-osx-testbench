@@ -2,22 +2,6 @@
 #define OPENGLWINDOW_H
 
 #include <QOpenGLWindow>
-#include <QScreen>
-#include <QPainter>
-#include <QGuiApplication>
-#include <QMatrix4x4>
-#include <QStaticText>
-#include <QKeyEvent>
-
-#include <QObject>
-#include <QFile>
-#include <QDateTime>
-#include <QFileSystemWatcher>
-#include <QOpenGLVertexArrayObject>
-#include <QOpenGLBuffer>
-#include <QOpenGLShaderProgram>
-#include <QOpenGLFunctions>
-#include <math.h>
 
 class OpenGLWindow : public QOpenGLWindow
 {

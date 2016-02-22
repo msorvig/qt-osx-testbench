@@ -6,6 +6,7 @@
 #include <QtGui/QtGui>
 
 extern bool g_useContainingLayers;
+extern bool g_animate;
 
 @implementation TestBenchContentView
 
@@ -287,7 +288,10 @@ extern bool g_useContainingLayers;
     Q_UNUSED(timeInterval);
     Q_UNUSED(timeStamp);
 
-    return YES; // Yes, we have a frame
+    if (g_animate) {
+        ++frame;
+        return YES; // Yes, we have a frame
+    }
 }
 
 - (void)drawInOpenGLContext:(NSOpenGLContext *)context
@@ -300,7 +304,6 @@ extern bool g_useContainingLayers;
     Q_UNUSED(timeInterval);
     Q_UNUSED(timeStamp);
 
-    ++frame;
     drawSimpleGLContent(frame);  // Here it is
 }
 
@@ -384,7 +387,10 @@ CVReturn mainThreadTimerFireCallback(CVDisplayLinkRef displayLink, const CVTimeS
 
 - (void)timerFire
 {
-    [self setNeedsDisplay:YES];
+    if (g_animate) {
+        ++frame;
+        [self setNeedsDisplay:YES];
+    }
 }
 
 - (void)drawRect:(NSRect)rect
@@ -434,13 +440,15 @@ CVReturn mainThreadTimerFireCallback(CVDisplayLinkRef displayLink, const CVTimeS
 
 - (void)timerFire
 {
-    [self setNeedsDisplay:YES];
+    if (g_animate) {
+        ++frame;
+        [self setNeedsDisplay:YES];
+    }
 }
 
 - (void)drawRect:(NSRect)rect
 {
     Q_UNUSED(rect);
-    ++frame;
 
     [m_glcontext makeCurrentContext];
 
@@ -485,6 +493,8 @@ CVReturn mainThreadTimerFireCallback(CVDisplayLinkRef displayLink, const CVTimeS
 - (void) syncPaint:(NSTimer *)timer
 {
     Q_UNUSED(timer);
+    if (!g_animate)
+        return;
     [self setNeedsDisplay:YES];
     if (self.window.isVisible)
         [self displayIfNeeded];
