@@ -10,18 +10,24 @@
 // in list maintaining functions on the native classes.
 Q_GLOBAL_STATIC(QList<NSWindow *>, nativeWindows);
 Q_GLOBAL_STATIC(QList<NSView *>, nativeViews);
+NSString *g_windowClassName = 0;
+NSString *g_viewClassName = 0;
 
 // Monitor NSWidow init.
 @implementation NSWindow (QCocoaSpy)
 - (instancetype)initWithContentRectSpy:(NSRect)contentRect styleMask:(NSUInteger)aStyle backing:(NSBackingStoreType)bufferingType defer:(BOOL)flag
 {
-    nativeWindows()->append(self);
+    if (!g_windowClassName || [NSStringFromClass([self class]) isEqualToString:g_windowClassName])
+        nativeWindows()->append(self);
+
     return [self initWithContentRectSpy:contentRect styleMask:aStyle backing:bufferingType defer:flag];
 }
 
 - (instancetype)initWithContentRectSpy:(NSRect)contentRect styleMask:(NSUInteger)aStyle backing:(NSBackingStoreType)bufferingType defer:(BOOL)flag screen:(NSScreen *)screen
 {
-    nativeWindows()->append(self);
+    if (!g_windowClassName || [NSStringFromClass([self class]) isEqualToString:g_windowClassName])
+        nativeWindows()->append(self);
+
     return [self initWithContentRectSpy:contentRect styleMask:aStyle backing:bufferingType defer:flag screen:screen];
 }
 
@@ -54,13 +60,17 @@ Q_GLOBAL_STATIC(QList<NSView *>, nativeViews);
 @implementation NSView (QCocoaSpy)
 - (instancetype)initWithFrameSpy:(NSRect)frameRect
 {
-    nativeViews()->append(self);
+    if (!g_viewClassName || [NSStringFromClass([self class]) isEqualToString:g_viewClassName])
+        nativeViews()->append(self);
+
     return [self initWithFrameSpy:frameRect];
 }
 
 - (instancetype)initWithCoderSpy:(NSCoder *)coder
 {
-    nativeViews()->append(self);
+    if (!g_viewClassName || [NSStringFromClass([self class]) isEqualToString:g_viewClassName])
+        nativeViews()->append(self);
+
     return [self initWithCoderSpy:coder];
 }
 
@@ -111,6 +121,15 @@ namespace QCocoaSpy
     {
         nativeWindows()->clear();
         nativeViews()->clear();
+        g_windowClassName = 0;
+        g_viewClassName = 0;
+    }
+
+    void reset(NSString *windowClassName, NSString *viewClassName)
+    {
+        reset();
+        g_windowClassName = windowClassName;
+        g_viewClassName = viewClassName;
     }
 
     int windowCount()
@@ -132,4 +151,5 @@ namespace QCocoaSpy
     {
         return nativeViews()->at(index);
     }
+
 }
