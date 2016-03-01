@@ -1,6 +1,8 @@
 #include <qtcontent.h>
 #include "glcontent.h"
 
+extern bool g_animate;
+
 QtOpenGLWidget::QtOpenGLWidget(const QByteArray &property)
 :QOpenGLWidget(0)
 {
@@ -20,7 +22,9 @@ void QtOpenGLWidget::resizeGL(int w, int h)
 
 void QtOpenGLWidget::paintGL()
 {
-    ++frame;
     drawSimpleGLContent(frame);
-    update();
+    if (g_animate) {
+        ++frame;
+        update();
+    }
 }
