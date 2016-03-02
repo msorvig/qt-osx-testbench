@@ -1,7 +1,7 @@
 
 #include <QtTest/QTest>
-
 #include <QtGui/QtGui>
+#include <QtPlatformHeaders/QCocoaWindowFunctions>
 
 #include <cocoaspy.h>
 #include <nativeeventlist.h>
@@ -50,11 +50,11 @@ int delay = 25;
 
 /*
 
-int viewConfigurationCount = 5;
-// 1: Raster
-// 2: OpenGL
-// 3: Raster Layer
-// 4: OpenGL layer
+int viewConfigurationCount = 4;
+// 0: Raster
+// 1: OpenGL
+// 2: Raster Layer
+// 3s: OpenGL layer
 
 #define VIEW_CONFIGURATIONS for (int _view_configuration = 0; _view_configuration < viewConfigurationCount; ++_view_configuration)
 #define VIEW_INSTANCE createTestViewInstance(_view_configuration);
@@ -83,8 +83,9 @@ void waitForWindowVisible(QWindow *window)
 // Coordinate systems:
 //
 // Qt, CoreGraphics and this test works in the same coordinate system where the
-// origin is at the top left corner of the main screen. Cocoa has the origin at
-// the bottom left corner. "public" accessor functions:
+// origin is at the top left corner of the main screen with the y axis pointing
+// downwards. Cocoa has the origin at the bottom left corner with the y axis pointing
+// upwards. There are geometry accessor functions:
 //
 //   QRect screenGeometry(NSView)
 //
@@ -426,7 +427,6 @@ void tst_QCocoaWindow::construction()
         TestWindowSpy::reset();
 
         @autoreleasepool {
-
             // The Cocoa platform plugin implements a backend for the QWindow
             // class. Here we use a TestWindow subclass which tracks instances
             // and events.
@@ -458,56 +458,88 @@ void tst_QCocoaWindow::construction()
             QCOMPARE(QCocoaSpy::windowCount(), 1);
 
             // deleting the QWindow instance hides and deletes the native views and windows
-            qDebug() << "delete";
             delete window;
-            qDebug() << "delete DONE";
-            //QCocoaSpy::waitForNoVisibleWindows();
-
             WAIT
-            qDebug() << "wait DONE";
         }
 
         QCOMPARE(TestWindowSpy::windowCount(), 0);
         // QCOMPARE(QCocoaSpy::visbileWindows, 0);
         QCOMPARE(QCocoaSpy::windowCount(), 0);
-        //  QCOMPARE(QCocoaSpy::viewCount(), 0); // ### FIXME
-
+        QCOMPARE(QCocoaSpy::viewCount(), 0);
     }
 }
 
 void tst_QCocoaWindow::embed()
 {
-    QCocoaSpy::reset();
-    TestWindowSpy::reset();
+    // Test instance lifetimes when transferring ownership of a QWindow to
+    // its NSView.
+    LOOP {
+        QCocoaSpy::reset(@"QNSWindow", @"QNSView");
+        TestWindowSpy::reset();
 
-    return;
+        QPointer<QWindow> window = new TestWindowSpy::TestWindow();
+        @autoreleasepool {
+            // It is possible to extract the native view for a QWindow and embed
+            // that view somewhere in a native NSWidnow/NSView hiearchy. This si
+            // done after creating the window instance, before and instead of
+            // showing it via the standard QWindow API.
+            NSView *view = QCocoaWindowFunctions::getNSView(window);
+            QVERIFY(view != 0);
 
-    QPointer<QWindow> window;
+            // Extracting the native view transfers ownership of the QWindow instance
+            // to the NSView instance. This creates a QCococaWindow instance and a
+            // native NSView, but does not create a QNSWindow.
+            QCOMPARE(TestWindowSpy::windowCount(), 1);
+            QCOMPARE(QCocoaSpy::viewCount(), 1);
+            QCOMPARE(QCocoaSpy::windowCount(), 0);
 
-    @autoreleasepool {
+            // Releasing the NSView deletes the QWindow.
+            [view release];
+        }
 
-        window = new TestWindowSpy::TestWindow();
-
-        // It is possible to extract the native view for a QWindow and embed
-        // that view somewhere in a native NSWidnow/NSView hiearchy.
-        NSView *view = getEmbeddableView(window);
-        QVERIFY(view != 0);
-
-        // Extracting the native view transfers ownership of the QWindow instance
-        // to the NSView instance. This creates a QCococaWindow instance and a
-        // native NSView, but does not create a QNSWindow.
-        QVERIFY(!window.isNull()); // valid for now
-        QCOMPARE(TestWindowSpy::windowCount(), 1);
-        QCOMPARE(QCocoaSpy::viewCount(), 1);
-        QCOMPARE(QCocoaSpy::windowCount(), 0);
-
-        // Releasing the NSView deletes the QWindow;
-        [view release];
+        // Verify that all instances were deleted.
+        QCOMPARE(QCocoaSpy::viewCount(), 0);
+        QCOMPARE(TestWindowSpy::windowCount(), 0);
+        QVERIFY(window.isNull());
     }
 
-    QCOMPARE(QCocoaSpy::viewCount(), 0);
-    QCOMPARE(TestWindowSpy::windowCount(), 0);
-    QVERIFY(window.isNull());
+    // Test instance lifetimes when using the NSView for a QWindow as a
+    // NSWindow content view.
+    LOOP {
+        QCocoaSpy::reset(@"QNSWindow", @"QNSView");
+        TestWindowSpy::reset();
+
+        QPointer<QWindow> qtwindow = new TestWindowSpy::TestWindow();
+        @autoreleasepool {
+            QCOMPARE(QCocoaSpy::viewCount(), 0);
+            QCOMPARE(QCocoaSpy::windowCount(), 0);
+
+            NSWindow *window = [[TestNSWidnow alloc] init];
+            NSView *view = QCocoaWindowFunctions::getNSView(qtwindow);
+            window.contentView = view;
+            [view release];
+
+            @autoreleasepool { // inner pool needed here to properly release tmp view references
+                [window makeKeyAndOrderFront:nil];
+            }
+            WAIT
+
+            QCOMPARE(TestWindowSpy::windowCount(), 1);
+            QCOMPARE(QCocoaSpy::viewCount(), 1);
+            QCOMPARE(QCocoaSpy::windowCount(), 0);
+
+            // Make NSAutomaticFocusRing release internal view references now.
+            [window makeFirstResponder: nil]; 
+
+            // Close and release the window.
+            [window close];
+            [window release];
+            WAIT WAIT
+        }
+        QCOMPARE(QCocoaSpy::viewCount(), 0);
+        QCOMPARE(TestWindowSpy::windowCount(), 0);
+        QVERIFY(qtwindow.isNull());
+    }
 }
 
 // Verify that mouse event generation and processing works as expected for native views.
@@ -734,7 +766,7 @@ void tst_QCocoaWindow::expose()
         QCOMPARE(window->obscureEventCount, 1);
         QCOMPARE(window->paintEventCount, 1);
 
-        // Eppose event on re-show, and accept zero or one paint event -
+        // Expose event on re-show, and accept zero or one paint event -
         // the QWindow implementation is allowed to cache and re-use
         // existing content.
         window->show();
