@@ -1,6 +1,6 @@
 TEMPLATE = app
 
-QT += gui widgets quick gui_private quickwidgets
+QT += gui widgets quick gui_private quickwidgets platformsupport-private
 
 CONFIG += c++11
 

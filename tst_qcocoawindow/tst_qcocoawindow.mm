@@ -67,6 +67,9 @@ private slots:
     void nativeMouseEvents();
     void nativeKeyboardEvents();
     void nativeEventForwarding();
+    void mouseEvents();
+    void keyboardEvents();
+    void eventForwarding();
 
     // Grahpics udpates and expose
     void nativeExpose();
@@ -178,9 +181,9 @@ QRect screenGeometry(NSView *view)
     return toQRect(coreGraphicsFrame);
 }
 
-NSView *getEmbeddableView(QWindow *window)
+QRect screenGeometry(QWindow *window)
 {
-
+    return window->geometry();
 }
 
 // QWindow instance [and event] counting facilities
@@ -194,6 +197,12 @@ namespace TestWindowSpy
     {
     public:
         QColor fillColor;
+        bool forwardEvents;
+        // Event counter
+        int mouseDownCount;
+        int mouseUpCount;
+        int keyDownCount;
+        int keyUpCount;
         int exposeEventCount;
         int obscureEventCount;
         int paintEventCount;
@@ -202,6 +211,11 @@ namespace TestWindowSpy
             setGeometry(100, 100, 100, 100);
 
             fillColor = QColor(Qt::green);
+            forwardEvents = false;
+            mouseDownCount = 0;
+            mouseUpCount = 0;
+            keyDownCount = 0;
+            keyUpCount = 0;
             exposeEventCount = 0;
             obscureEventCount = 0;
             paintEventCount = 0;
@@ -211,6 +225,30 @@ namespace TestWindowSpy
         }
         ~TestWindow() {
             --detail::instanceCount;
+        }
+
+        void keyPressEvent(QKeyEvent * ev) {
+            ev->setAccepted(!forwardEvents);
+            keyDownCount += forwardEvents ? 0 : 1;
+            if (!forwardEvents) {
+                qDebug() << "key press";
+            }
+        }
+
+        void keyReleaseEvent(QKeyEvent * ev) {
+            ev->setAccepted(!forwardEvents);
+            keyUpCount += forwardEvents ? 0 : 1;
+        }
+
+        void mousePressEvent(QMouseEvent * ev) {
+            ev->setAccepted(!forwardEvents);
+            mouseDownCount += forwardEvents ? 0 : 1;
+            qDebug() << "mouse press";
+        }
+
+        void mouseReleaseEvent(QMouseEvent * ev) {
+            ev->setAccepted(!forwardEvents);
+            mouseUpCount += forwardEvents ? 0 : 1;
         }
 
         void exposeEvent(QExposeEvent *event) {
@@ -360,6 +398,51 @@ namespace TestWindowSpy
 }
 
 @end
+
+// We are testing native NSViews and QWindows in various scenarios where
+// we in many cases expect them to behave similarly. In order to avoid
+// duplicating tests we create this interface which hides the concrete
+// view/window type and gives us a common API for accessing event counters etc.
+//
+// Usage
+//VIEW_TYPES {
+//    TestViewInterface *testView = CREATE_TEST_VIEW
+//    sendMousePressRelease(testView->geometry()->center());
+//    QCOMPARE(testView->mouseDownCount)
+//
+// }
+//
+#if 0
+class TestViewInterface
+{
+public:
+    TestViewInterface(TestNSView *nsView);
+    TestViewInterface(TestWindowSpy::TestWindow *qtWindow);
+
+    TestNSView *ns() {
+
+    }
+
+    TestWindowSpy::TestWindow *qt() {
+
+    }
+
+    NSView *view() {
+        return ns() ? ns() : QCocoaWindowFunctions::transferNativeView(qt());
+    }
+
+    int mouseDownCount() { return ns() ? ns().mouseDownCount : qt->mouseDownCount; }
+    int mouseUpCount() {}
+    int keyDownCount() {}
+    int keyUpCount() {}
+    int exposeEventCount() {}
+    int obscureEventCount() {}
+    int paintEventCount() {}
+private:
+    TestNSView m_cocoaView;
+    TestWindowSpy::TestWindow *m_qtWindow;
+};
+#endif
 
 //
 //  Test Implementation
@@ -520,7 +603,7 @@ void tst_QCocoaWindow::embed()
             // that view somewhere in a native NSWidnow/NSView hiearchy. This si
             // done after creating the window instance, before and instead of
             // showing it via the standard QWindow API.
-            NSView *view = QCocoaWindowFunctions::getNSView(window);
+            NSView *view = QCocoaWindowFunctions::transferNativeView(window);
             QVERIFY(view != 0);
 
             // Extracting the native view transfers ownership of the QWindow instance
@@ -552,7 +635,7 @@ void tst_QCocoaWindow::embed()
             QCOMPARE(QCocoaSpy::windowCount(), 0);
 
             NSWindow *window = [[TestNSWidnow alloc] init];
-            NSView *view = QCocoaWindowFunctions::getNSView(qtwindow);
+            NSView *view = QCocoaWindowFunctions::transferNativeView(qtwindow);
             window.contentView = view;
             [view release];
 
@@ -566,7 +649,7 @@ void tst_QCocoaWindow::embed()
             QCOMPARE(QCocoaSpy::windowCount(), 0);
 
             // Make NSAutomaticFocusRing release internal view references now.
-            [window makeFirstResponder: nil]; 
+            [window makeFirstResponder: nil];
 
             // Close and release the window.
             [window close];
@@ -637,9 +720,9 @@ void tst_QCocoaWindow::nativeKeyboardEvents()
     }
 }
 
-// Verify that rejecting/forwarding events works as expected. There are two views,
-// where the first responder view forwards received mouse and key events to the
-// next responder, which should be the second view.
+// Verify that rejecting/forwarding events with native views works as expected.
+// There are two views, where the first responder view forwards received mouse
+// and key events to the next responder, which should be the second view.
 void tst_QCocoaWindow::nativeEventForwarding()
 {
     LOOP {
@@ -694,6 +777,182 @@ void tst_QCocoaWindow::nativeEventForwarding()
             QCOMPARE(upper.keyUpCount, 0);
             QCOMPARE(lower.keyDownCount, 1);
             QCOMPARE(lower.keyUpCount, 1);
+        }
+
+        [window close];
+        [window release];
+        WAIT
+    }
+}
+
+
+void tst_QCocoaWindow::mouseEvents()
+{
+    LOOP {
+        TestWindowSpy::TestWindow *window = new TestWindowSpy::TestWindow();
+        window->setGeometry(100, 100, 100, 100);
+        window->show();
+
+        WAIT
+
+        QPoint viewCenter = screenGeometry(window).center();
+        NativeEventList events;
+        events.append(new QNativeMouseButtonEvent(viewCenter, Qt::LeftButton, 1, Qt::NoModifier));
+        events.append(new QNativeMouseButtonEvent(viewCenter, Qt::LeftButton, 0, Qt::NoModifier));
+        events.play();
+
+        QTRY_COMPARE(window->mouseDownCount, 1);
+        QTRY_COMPARE(window->mouseUpCount, 1);
+
+        delete window;
+    }
+}
+
+// Verify that key event generation and processing works as expected for native views.
+void tst_QCocoaWindow::keyboardEvents()
+{
+    LOOP {
+        TestWindowSpy::TestWindow *window = new TestWindowSpy::TestWindow();
+        window->setGeometry(100, 100, 100, 100);
+        window->show();
+
+        WAIT
+
+        NativeEventList events;
+        events.append(new QNativeKeyEvent(QNativeKeyEvent::Key_A, true, Qt::NoModifier));
+        events.append(new QNativeKeyEvent(QNativeKeyEvent::Key_A, false, Qt::NoModifier));
+        events.play();
+
+        QTRY_COMPARE(window->keyDownCount, 1);
+        QTRY_COMPARE(window->keyUpCount, 1);
+
+        delete window;
+    }
+}
+
+
+// Test that rejecting forwarding events with QWindow works.
+void tst_QCocoaWindow::eventForwarding()
+{
+#if 0
+    VIEW_CONFIG_LOOP(
+        [](TestNSView *view) { view.forwardEvents = true },
+        [](TestWindow *window){ window->forwardEvents = true },
+        [](TestWindow *window){ window->setFlags(qtwindow->flags() | Qt::WindowTransparentForInput); },
+        [](TestWindow *window){ window->setMask(window->geometry())) },
+    ) {
+        test test test
+    }
+#endif
+
+    LOOP {
+        NSWindow *window = [[TestNSWidnow alloc] init];
+
+        // Lower view which is completely covered by should get the events
+        TestNSView *lower = [[TestNSView alloc] init];
+        lower.fillColor = SAD_COLOR;
+        window.contentView = lower;
+        [lower release];
+
+        TestWindowSpy::TestWindow *qtwindow = new TestWindowSpy::TestWindow();
+        qtwindow->forwardEvents = true;
+        NSView *upper = QCocoaWindowFunctions::transferNativeView(qtwindow);
+        upper.frame = NSMakeRect(0, 0, 100, 100);
+        [lower addSubview:upper];
+        [upper release];
+
+        [window makeFirstResponder: upper];
+        [window makeKeyAndOrderFront:nil];
+
+        {
+            // Test mouse events
+            QPoint viewCenter = screenGeometry(upper).center();
+            NativeEventList events;
+            events.append(new QNativeMouseButtonEvent(viewCenter, Qt::LeftButton, 1, Qt::NoModifier));
+            events.append(new QNativeMouseButtonEvent(viewCenter, Qt::LeftButton, 0, Qt::NoModifier));
+            events.play();
+
+                WAIT
+
+            // Rejected mouse events go nowhere - if you click on a "blank" section
+            // then excepted behavior is that nothing happens, not further event
+            // propagation to the blocked view below.
+            QCOMPARE(qtwindow->mouseDownCount, 0);
+            QCOMPARE(qtwindow->mouseUpCount, 0);
+            QCOMPARE(lower.mouseDownCount, 0);
+            QCOMPARE(lower.mouseUpCount, 0);
+        }
+        {
+            // Test keyboard events
+            NativeEventList events;
+            events.append(new QNativeKeyEvent(QNativeKeyEvent::Key_A, true, Qt::NoModifier));
+            events.append(new QNativeKeyEvent(QNativeKeyEvent::Key_A, false, Qt::NoModifier));
+            events.play();
+
+                WAIT
+
+             // Keyboard events get propagated to the lower view
+            QCOMPARE(qtwindow->keyDownCount, 0);
+            QCOMPARE(qtwindow->keyUpCount, 0);
+            QCOMPARE(lower.keyDownCount, 1);
+            QCOMPARE(lower.keyUpCount, 1);
+        }
+
+        // Test Qt::WindowTransparentForInput windows
+        qtwindow->setFlags(qtwindow->flags() | Qt::WindowTransparentForInput);
+        qtwindow->forwardEvents = false;
+
+        {
+            // Mouse events
+            QPoint viewCenter = screenGeometry(upper).center();
+            NativeEventList events;
+            events.append(new QNativeMouseButtonEvent(viewCenter, Qt::LeftButton, 1, Qt::NoModifier));
+            events.append(new QNativeMouseButtonEvent(viewCenter, Qt::LeftButton, 0, Qt::NoModifier));
+            events.play();
+
+                WAIT
+
+            // Events go the lower view
+            QCOMPARE(qtwindow->mouseDownCount, 0);
+            QCOMPARE(qtwindow->mouseUpCount, 0);
+            QCOMPARE(lower.mouseDownCount, 1);
+            QCOMPARE(lower.mouseUpCount, 1);
+        }
+
+        {
+            // Test keyboard events
+            NativeEventList events;
+            events.append(new QNativeKeyEvent(QNativeKeyEvent::Key_A, true, Qt::NoModifier));
+            events.append(new QNativeKeyEvent(QNativeKeyEvent::Key_A, false, Qt::NoModifier));
+            events.play();
+
+                WAIT
+             // Keyboard events get propagated to the lower view
+            QCOMPARE(qtwindow->keyDownCount, 0);
+            QCOMPARE(qtwindow->keyUpCount, 0);
+            QCOMPARE(lower.keyDownCount, 2);
+            QCOMPARE(lower.keyUpCount, 2);
+        }
+        qtwindow->setFlags(qtwindow->flags() & ~Qt::WindowTransparentForInput);
+
+        // Test masked windows
+        qtwindow->setMask(QRect(QPoint(0, 0), qtwindow->geometry().size()));
+        qtwindow->setFlags(qtwindow->flags() | Qt::WindowTransparentForInput);
+        {
+            // Mouse events
+            QPoint viewCenter = screenGeometry(upper).center();
+            NativeEventList events;
+            events.append(new QNativeMouseButtonEvent(viewCenter, Qt::LeftButton, 1, Qt::NoModifier));
+            events.append(new QNativeMouseButtonEvent(viewCenter, Qt::LeftButton, 0, Qt::NoModifier));
+            events.play();
+
+                WAIT WAIT WAIT
+
+            // Events go the lower view
+            QCOMPARE(qtwindow->mouseDownCount, 0);
+            QCOMPARE(qtwindow->mouseUpCount, 0);
+            QCOMPARE(lower.mouseDownCount, 2);
+            QCOMPARE(lower.mouseUpCount, 2);
         }
 
         [window close];
@@ -807,7 +1066,7 @@ void tst_QCocoaWindow::expose()
         // the QWindow implementation is allowed to cache and re-use
         // existing content.
         window->show();
-        WAIT
+        WAIT WAIT
         QCOMPARE(window->exposeEventCount, 2);
         QCOMPARE(window->obscureEventCount, 1);
         QVERIFY(window->paintEventCount == 1 || window->paintEventCount == 2);
