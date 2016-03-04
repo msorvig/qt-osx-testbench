@@ -10,6 +10,43 @@
 /*!
     \class tst_QCocoaWindow
 
+    QCocoaWindow is the QPlatformWindow subclass used by QWindow on OS X.
+    It is implemented in terms of a native NSView and (sometimes) a NSWindow,
+    as well as other helper classes. These are in the standard Qt use cases
+    considered private implementation details.
+
+    Top-level QWindows have a NSWindow, child QWindows do not. For the top-level
+    case the NSView will then be the content view of the NSWindow. Child QWindows
+    are added as (child) subviews ot the parent view. Child NSWindows are not
+    used (by default, see options below).
+
+    QCocoaWindow supports different NSView configurations: OpenGL or Raster
+    content, layer-backed or "classic". The former is controlled by QWindow
+    and the application, the latter is similarly under application control but
+    can also be forced by externalities (such as a parent view using layers).
+
+    QCocoaWindow supports "extracting" the NSView and using the native view API.
+    This makes embedding Qt content in naive view hierachies possible, for
+    example when using Qt to write application plugins for native applications.
+
+    QCocoaWindow can be used to control 'foregin' NSViews. This can be used
+    to embed native content in Qt applcaitons. The embedding then happens on
+    the QWindow level.
+
+    QCocoaWindow _is_ a NSView (conceptually): it behaves as an NSView is
+    expected to do, and does not use resources outside of the NSView (global
+    event filters etc). At the same time QCocoaWindow _controls_ a NSView
+    (setting visibility status and geometry, etc), and we want to make as few
+    assumtions as possible about the actual NSView type. There are some
+    (if not many) exceptions to this in the QCocoaWindow implementation, but
+    think twice before adding more.
+
+    Options summary:
+        QT_MAC_WANTS_LAYER
+        _q_mac_wants_layer
+
+        QT_MAC_USE_NSWINDOW
+
     Test function naming:
         native*    Verifies native view behavior
 */
