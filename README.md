@@ -1,7 +1,12 @@
-Qt on OS X Graphics Test Bench
+Qt on OS X Test Bench
+============================
 
-The purpose of this repo is develop and test QWindow hosting
-options on OS X. Configurations include:
+The purpose of this repo is develop new tests for the Qt OS X ("cocoa") platform plugin. There
+is currently a manual test ("qt-osx-testbench") and an auto test ("tst_qcocoawindow").
+
+Manual Test: qt-osx-testbench
+-----------------------------
+The manual test tests QWindow in various _external_ configurations
 
 * A stand-alone top-level QWindow
 * A QWindow embedded in a NSView hierarchy as a child NSView
@@ -9,18 +14,19 @@ options on OS X. Configurations include:
   * without any layers present
 * A QWindow embedded in a NSWindow hierarchy as a child NSWindow
 
-Both raster and OpenGL QWindow content is tested. Test focus include
-update and animation performance (steady 60 fps), and proper resize
-behavior (don't flicker).
+Several _internal_ configurations are tested as well:
 
-As a means to this end this test bench implements several of the 
-configurations using native code only. This helps isolate native API
-usage errors and demonstrate whats possible to implement on the plaform.
+* Layer vs Non-layer
+* Raster and OpenGL content
+* Qt Widgets and Qt Quick Content.
+
+Test focus include update and animation performance (steady 60 fps), and proper resize
+behavior (don't flicker)-. As a means to this end this test bench implements several of the
+configurations using native code only. This helps isolate native API usage errors and
+demonstrate whats possible to implement on the plaform.
 
 TODO:
 
-* Implement a native OpenGL test case using NSView and NSOpenGLContext (not NSOpenGLView)
-* Implement a native OpenGL test case using a CAOpenGLLayer
 * Implement a multi-threaded native OpenGL test case
   * Driven by CVDisplayLink
   * Blocking on SwapBuffers.
@@ -30,4 +36,15 @@ TODO:
 * Make QOpenGLWindow animate and resize properly
   * Make QQuickWindow animate and resize properly
   * Make QGLWidget animate and resize properly
- 
+
+Auto Test: qt-osx-tst_qcocoawindow
+---------------------------------
+
+This test auto-tests aspects of the QCocoaWindow implementation, including:
+* Native view instance counts (leaks)
+* Event processing
+* Expose and repaint behavior.
+
+The test tests native views (for verifying assumptions) and QWindow/QCocoaWindow.
+There is no Qt Widgets and Qt Quick usage.
+
