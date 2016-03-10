@@ -587,6 +587,54 @@ void tst_QCocoaWindow::construction()
         QCOMPARE(QCocoaSpy::windowCount(), 0);
         QCOMPARE(QCocoaSpy::viewCount(), 0);
     }
+
+    // Repeat test, now with window->raise() call
+    LOOP {
+        QCocoaSpy::reset(@"QNSWindow", @"QNSView");
+        TestWindowSpy::reset();
+
+        @autoreleasepool {
+            // The Cocoa platform plugin implements a backend for the QWindow
+            // class. Here we use a TestWindow subclass which tracks instances
+            // and events.
+            QWindow *window = new TestWindowSpy::TestWindow();
+            window->setGeometry(100, 100, 100, 100);
+            QCOMPARE(TestWindowSpy::windowCount(), 1);
+
+            // The actual implementation is a QPlatformWindow subclass: QCocoaWidnow.
+            // Each QWindow has a corresponding QPlatformWindow instance, which is
+            // lazily constructed, on demand.
+            QVERIFY(window->handle() == 0);
+
+            // Construction can be forced, at which point there is a platform window.
+            window->create();
+            QVERIFY(window->handle() != 0);
+
+            // The platform plugin _may_ create native windows and views at this point,
+            // but is also allowed to further defer that. So we don't test.
+
+            // Calling show() forces the creation of the native views and windows.
+            window->show();
+            window->raise();
+            waitForWindowVisible(window);
+            // QCOMPARE(QCocoaSpy::visbileWindows, 1);
+
+            // A visible QWindow has two native instances: a NSView and a NSWindow.
+            // The NSView is the main backing instance for a QCocoaWindow. A NSWindow
+            // is also needed to get a top-level window with a title bar etc.
+            QCOMPARE(QCocoaSpy::viewCount(), 1);
+            QCOMPARE(QCocoaSpy::windowCount(), 1);
+
+            // deleting the QWindow instance hides and deletes the native views and windows
+            delete window;
+            WAIT
+        }
+
+        QCOMPARE(TestWindowSpy::windowCount(), 0);
+        // QCOMPARE(QCocoaSpy::visbileWindows, 0);
+        QCOMPARE(QCocoaSpy::windowCount(), 0);
+        QCOMPARE(QCocoaSpy::viewCount(), 0);
+    }
 }
 
 void tst_QCocoaWindow::embed()
