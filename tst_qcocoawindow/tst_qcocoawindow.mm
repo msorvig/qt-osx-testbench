@@ -79,7 +79,12 @@ private:
     CGPoint m_cursorPosition; // initial cursor position
 };
 
-// Utility funcitons for waiting and iterating. Colors.
+//
+// Warning implementation details follow. You may want to look at
+// a test function first to get your bearings
+//
+
+// Utility functions for waiting and iterating. Colors.
 int iterations = 3;
 int delay = 25;
 #define WAIT QTest::qWait(delay);
@@ -88,29 +93,23 @@ int delay = 25;
 #define MEH_COLOR [NSColor colorWithDeviceRed:0.1 green:0.1 blue:0.6 alpha:1.0] // Blue: Filler
 #define SAD_COLOR [NSColor colorWithDeviceRed:0.5 green:0.1 blue:0.1 alpha:1.0] // Red: Error
 
-/*
-
-int viewConfigurationCount = 4;
-// 0: Raster
-// 1: OpenGL
-// 2: Raster Layer
-// 3s: OpenGL layer
-
-#define VIEW_CONFIGURATIONS for (int _view_configuration = 0; _view_configuration < viewConfigurationCount; ++_view_configuration)
-#define VIEW_INSTANCE createTestViewInstance(_view_configuration);
-
-VIEW_CONFIGURATIONS {
-    LOOP {
-        NSWindow *window =
-        window.contentView = VIEW_INSTANCE;
-        [window makeKeyAndFront:nil];
-        WAIT
-        [window close];
-        [window release];
-    }
+// QWindow and NSView types
+namespace TestWindowSpy {
+    // Test window configurations. In reallity there are two independent
+    // config variables but we are making a linear list.
+    enum WindowConfiguration
+    {
+        RasterClassic,
+        RasterLayer,
+        OpenGLClassic,
+        OpenGLLayer,
+        WindowConfigurationCount
+    };
 }
 
-*/
+// Macro for iterating over window configurations
+#define WINDOW_CONFIGS for (int _view_configuration = 0; _view_configuration < TestWindowSpy::WindowConfigurationCount; ++_view_configuration)
+#define WINDOW_CONFIG TestWindowSpy::WindowConfiguration(_view_configuration)
 
 void waitForWindowVisible(QWindow *window)
 {
@@ -193,12 +192,20 @@ namespace TestWindowSpy
         static int instanceCount = 0;
     }
 
-    class TestWindow : public QRasterWindow
+    // Creates a test window according to the given configuration. Returns a pointer
+    // to the TestWindowBase interface. Access the QWindow with qwindow:
+    //    TestWindowBase *ec = createTestWindow(...);
+    //    QWindow *window = ec->qwindow;
+    // Or cast(?)
+    class TestWindowBase;
+    TestWindowBase *createTestWindow(WindowConfiguration windowConfiguration);
+
+    // Base class for storing event counts.
+    class TestWindowBase
     {
     public:
-        QColor fillColor;
-        bool forwardEvents;
-        // Event counter
+        QWindow *qwindow;
+
         int mouseDownCount;
         int mouseUpCount;
         int keyDownCount;
@@ -207,11 +214,8 @@ namespace TestWindowSpy
         int obscureEventCount;
         int paintEventCount;
 
-        TestWindow() {
-            setGeometry(100, 100, 100, 100);
-
-            fillColor = QColor(Qt::green);
-            forwardEvents = false;
+        TestWindowBase()
+        {
             mouseDownCount = 0;
             mouseUpCount = 0;
             keyDownCount = 0;
@@ -221,10 +225,30 @@ namespace TestWindowSpy
             paintEventCount = 0;
 
             ++detail::instanceCount;
-
         }
-        ~TestWindow() {
+
+        virtual ~TestWindowBase()
+        {
             --detail::instanceCount;
+        }
+    };
+
+    // We want to have test windows with a common event counting API,
+    // inhereting QRasterWindow or QOPenGLWindow. Solve by this slightly
+    // evil templated multiple inheritance usage.
+    template <typename WindowSubclass>
+    class TestWindowTempl : public WindowSubclass, public virtual TestWindowBase
+    {
+    public:
+        bool forwardEvents;
+        // Event counter
+
+        TestWindowTempl() {
+            WindowSubclass::setGeometry(100, 100, 100, 100);
+
+            forwardEvents = false;
+
+            qwindow = this;
         }
 
         void keyPressEvent(QKeyEvent * ev) {
@@ -257,15 +281,73 @@ namespace TestWindowSpy
             else
                 ++exposeEventCount;
         }
+    };
+
+    // Raster test window implementation
+    class TestRasterImpl : public QRasterWindow, public virtual TestWindowBase
+    {
+    public:
+        QColor fillColor;
+
+        TestRasterImpl()
+        {
+            fillColor = QColor(Qt::green);
+        }
 
         void paintEvent(QPaintEvent *) {
-            ++paintEventCount;
+            ++TestWindowBase::paintEventCount;
 
             QPainter p(this);
             QRect all(QPoint(0, 0), this->geometry().size());
             p.fillRect(all, fillColor);
         }
     };
+
+    // OpenGL test window implementation
+    class TestOpenGLImpl : public QOpenGLWindow, public virtual TestWindowBase
+    {
+    public:
+        TestOpenGLImpl()
+            :TestWindowBase(), QOpenGLWindow(QOpenGLWindow::NoPartialUpdate)
+        {}
+
+        void paintGL()
+        {
+            ++TestWindowBase::paintEventCount;
+            glClearColor(0, 0, 0.5, 1.0);
+            glClear(GL_COLOR_BUFFER_BIT);
+        }
+    };
+
+    // Assemble window components:
+    typedef TestWindowTempl<TestRasterImpl> TestWindow; // Legacy name
+    typedef TestWindowTempl<TestRasterImpl> RasterTestWindow;
+    typedef TestWindowTempl<TestOpenGLImpl> OpenGLTestWindow;
+
+    bool isRasterWindow(WindowConfiguration windowConfiguration) {
+        return windowConfiguration == RasterClassic || windowConfiguration == RasterLayer;
+    }
+    bool isLayeredWindow(WindowConfiguration windowConfiguration) {
+        return windowConfiguration == RasterLayer || windowConfiguration == OpenGLLayer;
+    }
+
+
+    TestWindowBase *createTestWindow(WindowConfiguration windowConfiguration)
+    {
+        TestWindowBase *window;
+
+        // Select Raster/OpenGL
+        if (isRasterWindow(windowConfiguration))
+            window = new RasterTestWindow();
+        else
+            window = new OpenGLTestWindow();
+
+        // Select Layer-backed/Classic
+        if (isLayeredWindow(windowConfiguration))
+            window->qwindow->setProperty("_qt_mac_wants_layer", QVariant(true));
+
+        return window;
+    }
 
     void reset() {
         detail::instanceCount = 0;
@@ -1089,43 +1171,55 @@ void tst_QCocoaWindow::nativeExpose()
 // Test that a window gets paint events on show.
 void tst_QCocoaWindow::expose()
 {
+    WINDOW_CONFIGS {
     LOOP {
-        TestWindowSpy::TestWindow *window = new TestWindowSpy::TestWindow();
+        TestWindowSpy::TestWindowBase *window = TestWindowSpy::createTestWindow(WINDOW_CONFIG);
 
         QCOMPARE(window->exposeEventCount, 0);
         QCOMPARE(window->obscureEventCount, 0);
         QCOMPARE(window->paintEventCount, 0);
 
         // Expose event on initial show, and we requrie a paint event
-        window->show();
-        WAIT WAIT
+        window->qwindow->show();
+
+        WAIT WAIT  WAIT WAIT
+
         QCOMPARE(window->exposeEventCount, 1);
         QCOMPARE(window->obscureEventCount, 0);
         QCOMPARE(window->paintEventCount, 1);
 
         // Obscure event on hide, and no additional paint events
-        window->hide();
+        window->qwindow->hide();
         WAIT
         QCOMPARE(window->exposeEventCount, 1);
         QCOMPARE(window->obscureEventCount, 1);
         QCOMPARE(window->paintEventCount, 1);
 
-        // Expose event on re-show, and accept zero or one paint event -
-        // the QWindow implementation is allowed to cache and re-use
-        // existing content.
-        window->show();
+        // Expose event on re-show
+        window->qwindow->show();
         WAIT WAIT
         QCOMPARE(window->exposeEventCount, 2);
         QCOMPARE(window->obscureEventCount, 1);
-        QVERIFY(window->paintEventCount == 1 || window->paintEventCount == 2);
 
-        window->close();
-        WAIT
-//      TODO
-//        QCOMPARE(window->obscureEventCount, 2);
+        if (TestWindowSpy::isRasterWindow(WINDOW_CONFIG)) {
+            // QRasterWindow may cache via QBackingStore, accept zero or one extra paint evnet
+            QVERIFY(window->paintEventCount == 1 || window->paintEventCount == 2);
+        } else {
+            // No caching for OpenGL.
+            // ### TODO: apparently not.
+            QVERIFY(window->paintEventCount == 1 || window->paintEventCount == 2);
+        }
+
+        window->qwindow->hide();
+        WAIT WAIT // ### close eats the obscure event.
+        window->qwindow->close();
+
+        WAIT WAIT
+
+        QCOMPARE(window->obscureEventCount, 2);
 
         delete window;
-
+    }
     }
 }
 
