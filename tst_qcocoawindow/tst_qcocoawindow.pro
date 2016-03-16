@@ -1,6 +1,6 @@
 TEMPLATE = app
 
-QT += core gui testlib platformsupport-private
+QT += core gui gui-private testlib platformsupport-private
 
 OBJECTS_DIR = .obj
 MOC_DIR = .moc
