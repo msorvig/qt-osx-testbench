@@ -184,13 +184,6 @@ namespace TestWindowSpy {
 #define WINDOW_CONFIGS for (int _view_configuration = 0; _view_configuration < TestWindowSpy::WindowConfigurationCount; ++_view_configuration)
 #define WINDOW_CONFIG TestWindowSpy::WindowConfiguration(_view_configuration)
 
-void waitForWindowVisible(QWindow *window)
-{
-    // use qWaitForWindowExposed for now.
-    QTest::qWaitForWindowExposed(window);
-    WAIT
-}
-
 NSWindow *getNSWindow(QWindow *window)
 {
     void *nswindow = QGuiApplication::platformNativeInterface()->
@@ -204,6 +197,104 @@ NSView *getNSView(QWindow *window)
                      nativeResourceForWindow(QByteArrayLiteral("nsview"), window);
     return static_cast<NSView*>(nsview);
 }
+
+NSView *getNSView(NSView *view)
+{
+    return view;
+}
+
+NSView *getNSView(NSWindow *window)
+{
+    return window.contentView;
+}
+
+void waitForWindowVisible(QWindow *window)
+{
+    // use qWaitForWindowExposed for now.
+    QTest::qWaitForWindowExposed(window);
+    WAIT
+}
+
+
+#if 0
+
+bool waitForWindowGeometryUpdate(QWindow *window)
+{
+    return waitForWindowGeometryUpdate(getNSView(window));
+}
+
+bool waitForWindowGeometryUpdate(NSWindow *window)
+{
+
+}
+
+
+bool waitForWindowGeometryUpdate(NSView *view)
+{
+    bool done = false;
+
+
+}
+
+class GeometryWaiter
+{
+public:
+    template <typename T>
+    GeometryWaiter(const T &object)
+    {
+        m_view = getNSView(object);
+
+        wasPostFrameChangeNotifications = view.postsFrameChangedNotifications;
+        view.postsFrameChangedNotifications = YES; // scary modification of NSView property
+        NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
+        id observer = [center
+            addObserverForNotificationName:NSViewFrameDidChangeNotification
+                                    object:view
+                                    queue:[NSOperationQueue mainQueue]
+                                    block:^(NSNotification *notification) {
+                                        qDebug() << "NSViewFrameDidChangeNotification"
+                                            done = true;
+                                    }];
+        done = false; // not interested in notifications prior to this.
+    };
+
+    bool wait() {
+        // wait for notification.
+        // AND/OR should we just poll NSView.frame here
+        while (!done) {
+            QTest::qWait(5); // spin event loop
+        }
+        // TODO time out
+    }
+
+    ~GeometryWaiter()
+    {
+        NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
+        [center removeObserver:observer];
+        view.postsFrameChangedNotifications = wasPostFrameChangeNotifications;
+    }
+private:
+    NSView *m_view;
+    bool wasPostFrameChangeNotifications:
+    bool done;
+    id observer;
+};
+
+#define GEOMETRY_WAIT(OBJECT, CODE) \
+{ \
+    GeometryWaiter waiter(OBJECT) \
+    CODE \
+    waiter.wait(); {} \
+}
+
+#define VISIBILITY_WAIT(OBJECT, CODE) \
+{ \
+    VisibilityWaiter waiter(OBJECT) \
+    CODE \
+    waiter.wait(); {} \
+}
+
+#endif
 
 //
 // Coordinate systems:
@@ -996,9 +1087,11 @@ void tst_QCocoaWindow::geometry_toplevel()
         qwindow->setGeometry(decoy);
         qwindow->create();
         qwindow->show();
+//        VISIBILITY_WAIT(qwindow);
         WAIT
 
         QRect geometry(101, 102, 103, 104);
+//        GEOMETRY_WAIT(qwindow, qwindow->setGeometry(geometry))
         qwindow->setGeometry(geometry);
         WAIT
 
