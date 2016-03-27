@@ -142,6 +142,9 @@ private slots:
     void expose();
     void expose_stacked();
 
+
+    void opengl_layermode();
+
 private:
     CGPoint m_cursorPosition; // initial cursor position
 };
@@ -206,6 +209,25 @@ NSView *getNSView(NSView *view)
 NSView *getNSView(NSWindow *window)
 {
     return window.contentView;
+}
+
+NSOpenGLContext *getNSOpenGLContext(QWindow *window)
+{
+    void *context = QGuiApplication::platformNativeInterface()->
+                     nativeResourceForWindow(QByteArrayLiteral("nsopenglcontext"), window);
+    return static_cast<NSOpenGLContext*>(context);
+}
+
+NSOpenGLPixelFormat *getNSOpenGLPixelFormat(NSOpenGLContext *context)
+{
+    CGLContextObj cglContext = [context CGLContextObj];
+    CGLPixelFormatObj cglPixelFormat = CGLGetPixelFormat(cglContext);
+    return [[[NSOpenGLPixelFormat alloc] initWithCGLPixelFormatObj:cglPixelFormat] autorelease];
+}
+
+NSOpenGLPixelFormat *getNSOpenGLPixelFormat(QWindow *window)
+{
+    return getNSOpenGLPixelFormat(getNSOpenGLContext(window));
 }
 
 void waitForWindowVisible(QWindow *window)
@@ -555,7 +577,7 @@ namespace TestWindowSpy
 
         // Select Layer-backed/Classic
         if (isLayeredWindow(windowConfiguration))
-            window->qwindow->setProperty("_qt_mac_wants_layer", QVariant(true));
+            window->qwindow->setProperty("_q_mac_wantsLayer", QVariant(true));
 
         return window;
     }
@@ -1693,6 +1715,43 @@ void tst_QCocoaWindow::expose_stacked()
     }}
 }
 
+// Test layer-mode QWindow with a custom OPenGL foramt. Expected behavior
+// is that the OpneGL context for the layer is configured with the custom
+// format set on the context.
+void tst_QCocoaWindow::opengl_layermode()
+{
+    // Construct and configure a window for layer mode.
+    QWindow *window = new QWindow;
+    window->setSurfaceType(QWindow::OpenGLSurface);
+    window->setProperty("_q_mac_wantsLayer", QVariant(true));
+
+    // Construct and configure an OpenGL context with a custom format.
+    QOpenGLContext *context = new QOpenGLContext;
+    QSurfaceFormat format;
+    format.setMajorVersion(4);
+    format.setMinorVersion(0);
+    format.setProfile(QSurfaceFormat::CoreProfile);
+    context->setFormat(format);
+
+    // Create the context with a target window pointer
+    context->create(window);
+
+    // Create the platform window. This will immediately create the
+    // QNSView instance and OpenGL layer, and will also configure
+    // and create the native OpenGL context for the layer.
+    window->create();
+    WAIT
+
+    // Verify that QSurfaceFormat options are reflected on the native pixel format.
+    context->makeCurrent(window);
+    NSOpenGLPixelFormat *pixelFormat = getNSOpenGLPixelFormat(window);
+    GLint profile;
+    [pixelFormat getValues:&profile forAttribute:NSOpenGLPFAOpenGLProfile forVirtualScreen:0];
+    QCOMPARE(profile,  GLint(NSOpenGLProfileVersion3_2Core));
+
+    delete window;
+    WAIT
+}
 
 QTEST_MAIN(tst_QCocoaWindow)
 #include <tst_qcocoawindow.moc>
