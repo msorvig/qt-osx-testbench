@@ -171,6 +171,22 @@ QColor toQColor(NSColor *color) {
     return QColor(r * 255, g * 255, b * 255, a * 255);
 }
 
+// from qtestcase.cpp
+static void stackTrace()
+{
+    fprintf(stderr, "\n========= Received signal, dumping stack ==============\n");
+    char cmd[512];
+    qsnprintf(cmd, 512, "lldb -p %d 2>/dev/null <<EOF\n"
+                         "bt all\n"
+                         "quit\n"
+                         "EOF\n",
+                         (int)getpid());
+    if (system(cmd) == -1)
+        fprintf(stderr, "calling lldb failed\n");
+    fprintf(stderr, "========= End of stack trace ==============\n");
+}
+
+
 // QWindow and NSView types
 namespace TestWindowSpy {
     // Test window configurations. In reallity there are two independent
