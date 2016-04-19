@@ -433,6 +433,53 @@ NSRect nsviewFrameGeometry(QRect qtWindowGeometry, NSView *view)
     qFatal("unexpected this is");
 }
 
+QImage toQImage(CGImageRef image)
+{
+    if (!image)
+        return QImage();
+
+    QPlatformNativeInterface::NativeResourceForIntegrationFunction function =
+            QGuiApplication::platformNativeInterface()->nativeResourceFunctionForIntegration("cgimagetoqimage");
+    if (!function)
+        return QImage(); // Not Cocoa platform plugin.
+
+    typedef QImage (*CGImageToQImageFunction)(CGImageRef);
+    return reinterpret_cast<CGImageToQImageFunction>(function)(image);
+}
+
+// Grabs the contents of the given NSWindow, at standard (1x) resolution.
+CGImageRef grabWindow(NSWindow *window)
+{
+    if (!window)
+        return nullptr;
+    CGWindowID windowID = (CGWindowID)[window windowNumber];
+    CGRect contentRect = NSRectToCGRect(toNSRect(screenGeometry(window)));
+    CGImageRef image = CGWindowListCreateImage(contentRect, kCGWindowListOptionIncludingWindow,
+                                               windowID, kCGWindowImageNominalResolution);
+    return image;
+}
+
+// Grabs the contents of the given QWindow, at standard (1x) resolution.
+QImage grabWindow(QWindow *window)
+{
+    return toQImage(grabWindow(getNSWindow(window)));
+}
+
+// Tests if pixels inside a rect are of the given color.
+bool verifyImage(const QImage &image, QRect rect, QColor color)
+{
+    int stride = 10;
+    for (int y = rect.y(); y < rect.y() + rect.height(); y += stride) {
+        for (int x = rect.x(); x < rect.x() + rect.width(); x += stride) {
+            QRgb pixel = image.pixel(x, y);
+            if (pixel != color.rgb())
+                return false;
+        }
+    }
+
+    return true; // match
+}
+
 // QWindow instance [and event] counting facilities
 namespace TestWindowSpy
 {
