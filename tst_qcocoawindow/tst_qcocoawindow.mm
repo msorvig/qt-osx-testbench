@@ -113,6 +113,20 @@ private slots:
     void geometry_child();
     void geometry_child_foreign();
 
+
+    // Visibility
+    //
+    // QWindows should become visible when setVisible is called, and
+    // not before. This can be a problem since some Cococa API
+    // trigger [NSView drawRect] calls as a side effect, which may
+    // cause Qt to mark the window as visible.
+    //
+    void visibility_native();
+    void visibility_setVisible();
+    void visibility_created_setGeometry();
+    void visibility_created_propagateSizeHints();
+
+
     // Event handling
     void nativeMouseEvents();
     void nativeKeyboardEvents();
@@ -1384,6 +1398,147 @@ void tst_QCocoaWindow::geometry_child_foreign()
 {
 
 
+}
+
+// Verify some basic NSwindow.isVisible behavior. See also
+// expose_native() which further tests repaint behavior when
+// hiding and showing windows.
+void tst_QCocoaWindow::visibility_native()
+{
+    LOOP {
+        // windows start out not visble
+        NSWindow *window = [[TestNSWidnow alloc] init];
+        TestNSView *view = [[TestNSView alloc] init];
+        window.contentView = view;
+        [view release];
+        QVERIFY(!window.isVisible);
+        QCOMPARE(view.drawRectCount, 0);
+
+        // makeKeyAndOrderFront does display.
+        [window makeKeyAndOrderFront:nil];
+        QVERIFY(window.isVisible);
+        QCOMPARE(view.drawRectCount, 1);
+        WAIT
+
+        // orderOut hides
+        [window orderOut:nil];
+        QVERIFY(!window.isVisible);
+        WAIT
+
+        // requesting a view repaint does not make the window visible
+        [view setNeedsDisplay:YES];
+        WAIT
+        QVERIFY(!window.isVisible);
+
+        // setFrame:frame display:NO actually does not display
+        NSRect frame = NSMakeRect(120, 120, 100, 100);
+        [window setFrame:frame display:NO animate:NO];
+        WAIT
+        QVERIFY(!window.isVisible);
+
+        [window release];
+        WAIT
+    }
+}
+
+// Verify that native window visibility follows Qt window visibility.
+void tst_QCocoaWindow::visibility_setVisible()
+{
+     WINDOW_CONFIGS  {
+     LOOP {
+         TestWindowSpy::TestWindowBase *w = TestWindowSpy::createTestWindow(WINDOW_CONFIG);
+         QWindow *window = w->qwindow;
+
+         window->setVisible(true);
+         NSWindow *nativeWindow = getNSWindow(window);
+         WAIT
+         QVERIFY(nativeWindow);
+         QVERIFY(window->isVisible());
+         QVERIFY(nativeWindow.isVisible);
+
+         window->setVisible(false);
+         WAIT
+         QVERIFY(!window->isVisible());
+         QVERIFY(!nativeWindow.isVisible);
+
+         delete window;
+         WAIT
+     }
+     }
+
+     WINDOW_CONFIGS  {
+     LOOP {
+         TestWindowSpy::TestWindowBase *w = TestWindowSpy::createTestWindow(WINDOW_CONFIG);
+         QWindow *window = w->qwindow;
+
+         window->create();
+         NSWindow *nativeWindow = getNSWindow(window);
+         QVERIFY(nativeWindow);
+         QVERIFY(!window->isVisible());
+         QVERIFY(!nativeWindow.isVisible);
+
+         window->setVisible(true);
+         WAIT
+         QVERIFY(window->isVisible());
+         QVERIFY(nativeWindow.isVisible);
+
+         window->setVisible(false);
+         WAIT
+         QVERIFY(!window->isVisible());
+         QVERIFY(!nativeWindow.isVisible);
+
+         delete window;
+         WAIT
+     }
+     }
+ }
+
+// Verify that calling setGeometry on a (created) QWindow does not make the window visible
+void tst_QCocoaWindow::visibility_created_setGeometry()
+{
+    WINDOW_CONFIGS  {
+    LOOP {
+        TestWindowSpy::TestWindowBase *w = TestWindowSpy::createTestWindow(WINDOW_CONFIG);
+        QWindow *window = w->qwindow;
+        window->create();
+        window->setGeometry(40, 50, 20, 30);
+        WAIT
+
+        NSWindow *nativeWindow = getNSWindow(window);
+        QVERIFY(nativeWindow);
+        QVERIFY(!window->isVisible());
+        QVERIFY(!nativeWindow.isVisible);
+
+        delete window;
+        WAIT
+    }
+    }
+}
+
+// Verify that calling propagateSizeHints on a (created) QWindow does not make the window visible
+void tst_QCocoaWindow::visibility_created_propagateSizeHints()
+{
+    WINDOW_CONFIGS  {
+    LOOP {
+        TestWindowSpy::TestWindowBase *w = TestWindowSpy::createTestWindow(WINDOW_CONFIG);
+        QWindow *window = w->qwindow;
+        window->create();
+
+        // Set min/max size, which should call propagateSizeHints on the
+        // platform window.
+        window->setMinimumSize(QSize(50, 50));
+        window->setMaximumSize(QSize(150, 150));
+        WAIT
+
+        NSWindow *nativeWindow = getNSWindow(window);
+        QVERIFY(nativeWindow);
+        QVERIFY(!window->isVisible());
+        QVERIFY(!nativeWindow.isVisible);
+
+        delete window;
+        WAIT
+    }
+    }
 }
 
 // Verify that key event generation and processing works as expected for native views.
