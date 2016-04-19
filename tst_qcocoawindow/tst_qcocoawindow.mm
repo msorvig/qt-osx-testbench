@@ -199,8 +199,20 @@ namespace TestWindowSpy {
         OpenGLLayer,
         WindowConfigurationCount
     };
+
+    QByteArray windowConfigurationName(WindowConfiguration windowConfiguration)
+    {
+        switch (windowConfiguration) {
+            case RasterClassic: return QByteArray("raster_classic");
+            case RasterLayer: return QByteArray("raster_layer");
+            case OpenGLClassic: return QByteArray("opengl_classic");
+            case OpenGLLayer: return QByteArray("openlg_layer");
+        };
+        return QByteArray("unknown_window_config");
+    }
 }
 
+Q_DECLARE_METATYPE(TestWindowSpy::WindowConfiguration);
 // Macro for iterating over window configurations
 #define WINDOW_CONFIGS for (int _view_configuration = 0; _view_configuration < TestWindowSpy::WindowConfigurationCount; ++_view_configuration)
 #define WINDOW_CONFIG TestWindowSpy::WindowConfiguration(_view_configuration)
