@@ -236,8 +236,10 @@ namespace TestWindowSpy {
 }
 
 Q_DECLARE_METATYPE(TestWindowSpy::WindowConfiguration);
+
 // Macro for iterating over window configurations
 #define WINDOW_CONFIGS for (int _view_configuration = 0; _view_configuration < TestWindowSpy::WindowConfigurationCount; ++_view_configuration)
+#define RASTER_WINDOW_CONFIGS for (int _view_configuration = 0; _view_configuration <= TestWindowSpy::RasterLayer; ++_view_configuration)
 #define WINDOW_CONFIG TestWindowSpy::WindowConfiguration(_view_configuration)
 
 NSWindow *getNSWindow(QWindow *window)
