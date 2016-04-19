@@ -119,7 +119,7 @@ private slots:
     // QWindows should become visible when setVisible is called, and
     // not before. This can be a problem since some Cococa API
     // trigger [NSView drawRect] calls as a side effect, which may
-    // cause Qt to mark the window as visible.
+    // cause Qt to transition the window to the visible state.
     //
     void visibility_native();
     void visibility_setVisible();
@@ -135,7 +135,7 @@ private slots:
     void keyboardEvents();
     void eventForwarding();
 
-    // Grahpics udpates and expose
+    // Grahpics updates and expose
     //
     // Qts expose event has two meanings:
     //   - Window visibility control: where the expose region indicates if the window
@@ -229,7 +229,7 @@ namespace TestWindowSpy {
             case RasterClassic: return QByteArray("raster_classic");
             case RasterLayer: return QByteArray("raster_layer");
             case OpenGLClassic: return QByteArray("opengl_classic");
-            case OpenGLLayer: return QByteArray("openlg_layer");
+            case OpenGLLayer: return QByteArray("opengl_layer");
         };
         return QByteArray("unknown_window_config");
     }
@@ -1865,7 +1865,7 @@ void tst_QCocoaWindow::expose_native()
         [view release];
         QCOMPARE(view.drawRectCount, 0);
 
-        // Show windpw and get a drawRect call
+        // Show window and get a drawRect call
         [window makeKeyAndOrderFront:nil];
         WAIT
         QCOMPARE(view.drawRectCount, 1);
