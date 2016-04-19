@@ -554,6 +554,17 @@ namespace TestWindowSpy
 
         TestWindowBase()
         {
+            resetCounters();
+            ++detail::instanceCount;
+        }
+
+        virtual ~TestWindowBase()
+        {
+            --detail::instanceCount;
+        }
+
+        void resetCounters()
+        {
             mouseDownCount = 0;
             mouseUpCount = 0;
             keyDownCount = 0;
@@ -561,13 +572,16 @@ namespace TestWindowSpy
             exposeEventCount = 0;
             obscureEventCount = 0;
             paintEventCount = 0;
-
-            ++detail::instanceCount;
         }
 
-        virtual ~TestWindowBase()
+        virtual void update(QRect rect)
         {
-            --detail::instanceCount;
+            // Will be overridden by subclass
+        }
+
+        virtual void repaint()
+        {
+            // Will be overridden by subclass
         }
     };
 
@@ -618,6 +632,9 @@ namespace TestWindowSpy
                 ++obscureEventCount;
             else
                 ++exposeEventCount;
+
+            // Call base impl which will call paintEvent()
+            WindowSubclass::exposeEvent(event);
         }
     };
 
@@ -630,12 +647,24 @@ namespace TestWindowSpy
             fillColor = QColor(Qt::green);
         }
 
-        void paintEvent(QPaintEvent *) {
+        void update(QRect rect)
+        {
+            QRasterWindow::update(rect);
+        }
+
+        virtual void repaint()
+        {
+            QRasterWindow::repaint();
+        }
+
+        void paintEvent(QPaintEvent *ev) {
             ++TestWindowBase::paintEventCount;
 
+            // Fill the dirty rects with the current fill color.
             QPainter p(this);
-            QRect all(QPoint(0, 0), this->geometry().size());
-            p.fillRect(all, fillColor);
+            foreach (QRect rect, ev->region().rects()) {
+                p.fillRect(rect, fillColor);
+            }
         }
     };
 
