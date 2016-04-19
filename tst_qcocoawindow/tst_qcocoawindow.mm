@@ -1,7 +1,9 @@
 
 #include <QtTest/QTest>
 #include <QtGui/QtGui>
+#ifdef HAVE_TRANSFER_NATIVE_VIEW
 #include <QtPlatformHeaders/QCocoaWindowFunctions>
+#endif
 #include <qpa/qplatformnativeinterface.h>
 
 #include <cocoaspy.h>
@@ -236,6 +238,18 @@ void waitForWindowVisible(QWindow *window)
     QTest::qWaitForWindowExposed(window);
     WAIT
 }
+
+#ifndef HAVE_TRANSFER_NATIVE_VIEW
+// Placeholder for actual transferNativeView() implementation. Usage will cause test failures.
+class QCocoaWindowFunctions
+{
+public:
+    static NSView *transferNativeView(QWindow *)
+    {
+        return 0;
+    }
+};
+#endif
 
 
 #if 0
@@ -964,6 +978,9 @@ void tst_QCocoaWindow::construction()
 
 void tst_QCocoaWindow::embed()
 {
+#ifndef HAVE_TRANSFER_NATIVE_VIEW
+    QSKIP("This test requires QCocoaWindowFunctions::transferNativeView");
+#endif
     // Test instance lifetimes when transferring ownership of a QWindow to
     // its NSView.
     LOOP {
@@ -1161,6 +1178,9 @@ void tst_QCocoaWindow::geometry_toplevel()
 // Verify that "embedded" QWindows get correct geometry
 void tst_QCocoaWindow::geometry_toplevel_embed()
 {
+#ifndef HAVE_TRANSFER_NATIVE_VIEW
+    QSKIP("This test requires QCocoaWindowFunctions::transferNativeView");
+#endif
 
     // Test embedding in a NSWindow as the content view.
     LOOP {
@@ -1434,6 +1454,10 @@ void tst_QCocoaWindow::keyboardEvents()
 // Test that rejecting forwarding events with QWindow works.
 void tst_QCocoaWindow::eventForwarding()
 {
+#ifndef HAVE_TRANSFER_NATIVE_VIEW
+    QSKIP("This test requires QCocoaWindowFunctions::transferNativeView");
+#endif
+
 #if 0
     VIEW_CONFIG_LOOP(
         [](TestNSView *view) { view.forwardEvents = true },
