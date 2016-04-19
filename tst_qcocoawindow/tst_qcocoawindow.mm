@@ -158,6 +158,8 @@ private slots:
     void expose();
     void expose_stacked();
 
+    void expose_resize_data();
+    void expose_resize();
 
     void opengl_layermode();
 
@@ -1996,6 +1998,53 @@ void tst_QCocoaWindow::expose_stacked()
 
         WAIT WAIT         WAIT WAIT         WAIT WAIT
     }}
+}
+
+
+void tst_QCocoaWindow::expose_resize_data()
+{
+    QTest::addColumn<TestWindowSpy::WindowConfiguration>("windowconfiguration");
+#if 0
+    // ### layer configs are broken
+    WINDOW_CONFIGS {
+        QTest::newRow(windowConfigurationName(WINDOW_CONFIG).constData()) << WINDOW_CONFIG;
+    }
+#else
+    QTest::newRow(windowConfigurationName(TestWindowSpy::RasterClassic).constData()) << TestWindowSpy::RasterClassic;
+    QTest::newRow(windowConfigurationName(TestWindowSpy::OpenGLClassic).constData()) << TestWindowSpy::OpenGLClassic;
+#endif
+}
+
+// Verify that there is one expose + paint on window resize.
+void tst_QCocoaWindow::expose_resize()
+{
+    QFETCH(TestWindowSpy::WindowConfiguration, windowconfiguration);
+
+    // Test resize by programatically chainging the NSWindow frame
+     LOOP {
+        TestWindowSpy::TestWindowBase *twindow = TestWindowSpy::createTestWindow(windowconfiguration);
+        QWindow *qwindow = twindow->qwindow;
+
+        QRect geometry1(100, 100, 100, 100);
+        qwindow->setGeometry(geometry1);
+        qwindow->show();
+        WAIT WAIT WAIT // wait-for-painted
+
+        twindow->resetCounters();
+        QCOMPARE(twindow->exposeEventCount, 0);
+
+        NSWindow *nswindow = getNSWindow(qwindow);
+        QRect geometry2(100, 100, 200, 200);
+        NSRect frame = nswindowFrameGeometry(geometry2, nswindow);
+        [nswindow setFrame:frame display:NO animate:NO];
+        WAIT
+
+        QCOMPARE(twindow->exposeEventCount, 1);
+        QCOMPARE(twindow->paintEventCount, 1);
+
+        delete qwindow;
+        WAIT
+    }
 }
 
 // Test layer-mode QWindow with a custom OPenGL foramt. Expected behavior
