@@ -163,6 +163,13 @@ private slots:
 
     void opengl_layermode();
 
+    // Repaint coverage
+    //
+    // Verify that raster window updates are correct.
+    //
+    void paint_coverage(); void paint_coverage_data();
+    void paint_coverage_childwindow();
+
 private:
     CGPoint m_cursorPosition; // initial cursor position
 };
@@ -2083,6 +2090,64 @@ void tst_QCocoaWindow::opengl_layermode()
 
     delete window;
     WAIT
+}
+
+void tst_QCocoaWindow::paint_coverage_data()
+{
+    QTest::addColumn<TestWindowSpy::WindowConfiguration>("windowconfiguration");
+#if 0
+    // (### raster_layer is broken)
+    RASTER_WINDOW_CONFIGS {
+        QTest::newRow(windowConfigurationName(WINDOW_CONFIG).constData()) << WINDOW_CONFIG;
+    }
+#else
+        QTest::newRow(windowConfigurationName(TestWindowSpy::RasterClassic).constData()) << TestWindowSpy::RasterClassic;
+#endif
+}
+
+// Test that windows are correctly repainted on show(), update(), and repaint()
+void tst_QCocoaWindow::paint_coverage()
+{
+    QFETCH(TestWindowSpy::WindowConfiguration, windowconfiguration);
+
+    LOOP {
+        // Show window with solid color
+        TestWindowSpy::TestWindowBase *window = TestWindowSpy::createTestWindow(windowconfiguration);
+        QRect geometry(20, 20, 200, 200);
+        window->fillColor = toQColor(MEH_COLOR);
+        window->qwindow->setGeometry(geometry);
+        window->qwindow->show();
+        WAIT WAIT
+
+        // Verify that the pixels on screen match
+        QRect imageGeometry(QPoint(0, 0), geometry.size());
+        QVERIFY(verifyImage( grabWindow(window->qwindow), imageGeometry, toQColor(MEH_COLOR)));
+
+        // Fill subrect with new color
+        window->fillColor = toQColor(HAPPY_COLOR);
+        QRect updateRect(50, 50, 50, 50);
+        window->update(updateRect);
+        WAIT WAIT
+
+        // Verify that the window was partially repainted
+        QVERIFY(verifyImage(grabWindow(window->qwindow), updateRect, toQColor(HAPPY_COLOR)));
+        QRect notUpdated(110, 110, 50, 50);
+        QVERIFY(verifyImage(grabWindow(window->qwindow), notUpdated, toQColor(MEH_COLOR)));
+
+#ifdef HAVE_TRANSFER_NATIVE_VIEW
+        // Call repaint() and verify that the window has been repainted on return.
+        window->repaint();
+        QVERIFY(verifyImage(grabWindow(window->qwindow), imageGeometry, toQColor(HAPPY_COLOR)));
+#endif
+        delete window;
+        WAIT
+    }
+}
+
+void tst_QCocoaWindow::paint_coverage_childwindow()
+{
+
+
 }
 
 QTEST_MAIN(tst_QCocoaWindow)
