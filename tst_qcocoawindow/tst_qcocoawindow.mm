@@ -690,7 +690,7 @@ namespace TestWindowSpy
         void paintGL()
         {
             ++TestWindowBase::paintEventCount;
-            glClearColor(0, 0, 0.5, 1.0);
+            glClearColor(fillColor.redF(), fillColor.greenF(), fillColor.blueF(), fillColor.alphaF());
             glClear(GL_COLOR_BUFFER_BIT);
         }
     };
