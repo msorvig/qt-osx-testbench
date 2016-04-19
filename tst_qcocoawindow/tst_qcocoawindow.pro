@@ -23,10 +23,11 @@ SOURCES += \
     $$PWD/nativeevents/qnativeevents_mac.cpp
 LIBS += -framework Carbon
 
-# The Test
+# QCocoaWindow unit test
 OBJECTIVE_SOURCES += $$PWD/tst_qcocoawindow.mm
 LIBS += -framework AppKit
 
 # API usage switches. Comment in for Qt branches that
 # have the new API.
 DEFINES += HAVE_TRANSFER_NATIVE_VIEW
+DEFINES += HAVE_QPAINTDEVICEWINDOW_REPAINT
