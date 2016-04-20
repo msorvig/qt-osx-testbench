@@ -1874,14 +1874,28 @@ void tst_QCocoaWindow::expose_native()
 
         // Hide the window, no extra drawRect calls
         [window orderOut:nil];
+        WAIT
         QCOMPARE(view.drawRectCount, 1);
+
+        // [setFrame: display:NO] triggers a drawRect call,
+        // even though the containing window is not visible
+        NSRect frame = NSMakeRect(120, 120, 100, 100);
+        [window setFrame:frame display:NO animate:NO];
+        WAIT
+        QCOMPARE(view.drawRectCount, 2);
+
+        // [view setNeedsDisplay] on the content view for
+        // a hidden window triggers a drawRect call.
+        [view setNeedsDisplay:YES];
+        WAIT
+        QCOMPARE(view.drawRectCount, 3);
 
         // Show window again: we'll accept a repaint and also that the
         // OS has cached and don't repaint (the latter is observed to be
         // the actual behavior)
         [window makeKeyAndOrderFront:nil];
         WAIT
-        QVERIFY(view.drawRectCount >= 1 && view.drawRectCount <= 2);
+        QVERIFY(view.drawRectCount >= 3 && view.drawRectCount <= 3);
 
         [window close];
         [window release];
@@ -1936,37 +1950,37 @@ void tst_QCocoaWindow::expose_native_stacked()
 // Test that a window gets expose (and paint) events on show, and obscure events on hide
 void tst_QCocoaWindow::expose()
 {
-    WINDOW_CONFIGS {
+//    WINDOW_CONFIGS 
+    {
     LOOP {
-        TestWindowSpy::TestWindowBase *window = TestWindowSpy::createTestWindow(WINDOW_CONFIG);
+        TestWindowSpy::TestWindowBase *window = TestWindowSpy::createTestWindow(TestWindowSpy::RasterClassic);
 
         QCOMPARE(window->exposeEventCount, 0);
         QCOMPARE(window->obscureEventCount, 0);
         QCOMPARE(window->paintEventCount, 0);
 
-        // Expose event on initial show, and we requrie a paint event
+        // Show the window, expect one expose and one paint event.
         window->qwindow->show();
-
         WAIT WAIT  WAIT WAIT
 
         QCOMPARE(window->exposeEventCount, 1);
         QCOMPARE(window->obscureEventCount, 0);
         QCOMPARE(window->paintEventCount, 1);
 
-        // Obscure event on hide, and no additional paint events
+        // Hide the window, +1 obscure event
         window->qwindow->hide();
         WAIT
         QCOMPARE(window->exposeEventCount, 1);
         QCOMPARE(window->obscureEventCount, 1);
         QCOMPARE(window->paintEventCount, 1);
 
-        // Expose event on re-show
+        // Expose event on re-show, +1 expose event
         window->qwindow->show();
         WAIT WAIT
         QCOMPARE(window->exposeEventCount, 2);
         QCOMPARE(window->obscureEventCount, 1);
 
-        if (TestWindowSpy::isRasterWindow(WINDOW_CONFIG)) {
+        if (TestWindowSpy::isRasterWindow(TestWindowSpy::RasterClassic)) {
             // QRasterWindow may cache via QBackingStore, accept zero or one extra paint evnet
             QVERIFY(window->paintEventCount == 1 || window->paintEventCount == 2);
         } else {
@@ -1974,10 +1988,10 @@ void tst_QCocoaWindow::expose()
             QVERIFY(window->paintEventCount == 1 || window->paintEventCount == 2);
         }
 
+        // Hide the window, expect +1 obscure event.
         window->qwindow->hide();
         WAIT WAIT // ### close eats the obscure event.
         window->qwindow->close();
-
         WAIT WAIT
 
         QCOMPARE(window->obscureEventCount, 2);
