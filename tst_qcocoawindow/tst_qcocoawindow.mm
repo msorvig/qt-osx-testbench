@@ -1686,6 +1686,11 @@ void tst_QCocoaWindow::expose()
         QVERIFY(window->takeObscureEvent());
         QVERIFY(!window->takePaintEvent());
 
+        // Request update on the hidden window: expect no expose or paint events.
+        window->update(QRect(0, 0, 40, 40));
+        QVERIFY(!window->takeExposeEvent());
+        QVERIFY(!window->takePaintEvent());
+
         // Show the window, expect one expose event
         window->qwindow->show();
         WAIT WAIT
