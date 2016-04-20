@@ -2075,6 +2075,8 @@ void tst_QCocoaWindow::expose_resize()
 // format set on the context.
 void tst_QCocoaWindow::opengl_layermode()
 {
+    QSKIP("in progress");
+
     // Construct and configure a window for layer mode.
     QWindow *window = new QWindow;
     window->setSurfaceType(QWindow::OpenGLSurface);
@@ -2088,21 +2090,37 @@ void tst_QCocoaWindow::opengl_layermode()
     format.setProfile(QSurfaceFormat::CoreProfile);
     context->setFormat(format);
 
-    // Create the context with a target window pointer
-    context->create(window);
+    // Create the context
+    context->create();
 
     // Create the platform window. This will immediately create the
     // QNSView instance and OpenGL layer, and will also configure
     // and create the native OpenGL context for the layer.
     window->create();
+
     WAIT
 
     // Verify that QSurfaceFormat options are reflected on the native pixel format.
     context->makeCurrent(window);
-    NSOpenGLPixelFormat *pixelFormat = getNSOpenGLPixelFormat(window);
-    GLint profile;
-    [pixelFormat getValues:&profile forAttribute:NSOpenGLPFAOpenGLProfile forVirtualScreen:0];
-    QCOMPARE(profile,  GLint(NSOpenGLProfileVersion3_2Core));
+    {
+        // Access pixelformat via QWindow
+        NSOpenGLPixelFormat *pixelFormat = getNSOpenGLPixelFormat(window);
+        GLint profile;
+        [pixelFormat getValues:&profile forAttribute:NSOpenGLPFAOpenGLProfile forVirtualScreen:0];
+        QCOMPARE(profile, GLint(NSOpenGLProfileVersion3_2Core));
+    }
+
+    {
+        // Access pixelformat via NSOpenGLContext current
+        NSOpenGLPixelFormat *pixelFormat = getNSOpenGLPixelFormat([NSOpenGLContext currentContext]);
+        GLint profile;
+        [pixelFormat getValues:&profile forAttribute:NSOpenGLPFAOpenGLProfile forVirtualScreen:0];
+        QCOMPARE(profile, GLint(NSOpenGLProfileVersion3_2Core));
+    }
+    context->doneCurrent();
+
+    // TODO: Verify that the QSurfaceFormat options are reflected on the context
+    // which is current during the draw callback.
 
     delete window;
     WAIT
