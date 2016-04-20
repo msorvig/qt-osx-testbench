@@ -185,9 +185,12 @@ int delay = 25;
 #define WAIT QTest::qWait(delay);
 #define LOOP for (int i = 0; i < iterations; ++i) @autoreleasepool // Don't leak
 
-#define HAPPY_COLOR [NSColor colorWithDeviceRed:0.1 green:0.6 blue:0.1 alpha:1.0] // Green is Good
-#define MEH_COLOR [NSColor colorWithDeviceRed:0.1 green:0.1 blue:0.6 alpha:1.0] // Blue: Filler
-#define SAD_COLOR [NSColor colorWithDeviceRed:0.5 green:0.1 blue:0.1 alpha:1.0] // Red: Error
+// Colors: Use "OK" and "FILLER" as general colors (add more if needed).
+// "ERROR" (red) is a visual indication of test failure and should not
+// be visible during error free test runs.
+#define OK_COLOR [NSColor colorWithDeviceRed:0.1 green:0.6 blue:0.1 alpha:1.0] // Green is Good
+#define FILLER_COLOR [NSColor colorWithDeviceRed:0.1 green:0.1 blue:0.6 alpha:1.0] // Blue: Filler
+#define ERROR_COLOR [NSColor colorWithDeviceRed:0.5 green:0.1 blue:0.1 alpha:1.0] // Red: Error
 QColor toQColor(NSColor *color) {
     CGFloat r,g,b,a;
     [color getRed:&r green:&g blue:&b alpha:&a];
@@ -853,7 +856,7 @@ NSWindow *createTestWindow()
 {
     [super init];
 
-    self.fillColor = HAPPY_COLOR;
+    self.fillColor = OK_COLOR;
     self.forwardEvents = false;
 
     return self;
@@ -1373,7 +1376,7 @@ void tst_QCocoaWindow::geometry_toplevel_embed()
     // Test embedding in a NSWindow as the content view.
     LOOP {
         NSWindow *window = createTestWindow();
-        [window setBackgroundColor:SAD_COLOR];
+        [window setBackgroundColor:ERROR_COLOR];
 
 //        NSView *testView = [[TestNSView alloc] init];
 
@@ -1413,7 +1416,7 @@ void tst_QCocoaWindow::geometry_child()
     LOOP {
         // Parent
         TestWindowSpy::TestWindowBase *tparent = TestWindowSpy::createTestWindow(TestWindowSpy::RasterClassic);
-        tparent->fillColor = toQColor(MEH_COLOR);
+        tparent->fillColor = toQColor(FILLER_COLOR);
         QWindow *parent = tparent->qwindow;
         QRect parentGeometry(101, 102, 103, 104);
         parent->setGeometry(parentGeometry);
@@ -1429,7 +1432,7 @@ void tst_QCocoaWindow::geometry_child()
         QPoint expectedChildScreenPosition = parentScreenGeometry.topLeft() + childOffset;
 
         TestWindowSpy::TestWindowBase *tchild = TestWindowSpy::createTestWindow(TestWindowSpy::RasterClassic);
-        tchild->fillColor = toQColor(HAPPY_COLOR);
+        tchild->fillColor = toQColor(OK_COLOR);
         QWindow *child = tchild->qwindow;
         child->setParent(parent);
         QRect childGeometry(childOffset, childSize);
@@ -1679,7 +1682,7 @@ void tst_QCocoaWindow::nativeEventForwarding()
 
         // Lower view which is completely covered by should get the events
         TestNSView *lower = [[TestNSView alloc] init];
-        lower.fillColor = SAD_COLOR;
+        lower.fillColor = ERROR_COLOR;
         window.contentView = lower;
         [lower release];
 
@@ -1687,7 +1690,7 @@ void tst_QCocoaWindow::nativeEventForwarding()
         TestNSView *upper = [[TestNSView alloc] init];
         upper.frame = NSMakeRect(0, 0, 100, 100);
         upper.forwardEvents = true;
-        upper.fillColor = HAPPY_COLOR;
+        upper.fillColor = OK_COLOR;
         [lower addSubview:upper];
         [upper release];
 
@@ -1803,7 +1806,7 @@ void tst_QCocoaWindow::eventForwarding()
 
         // Lower view which is completely covered by should get the events
         TestNSView *lower = [[TestNSView alloc] init];
-        lower.fillColor = SAD_COLOR;
+        lower.fillColor = ERROR_COLOR;
         window.contentView = lower;
         [lower release];
 
@@ -1971,14 +1974,14 @@ void tst_QCocoaWindow::expose_native_stacked()
 
         // Lower view which is completely covered
         TestNSView *lower = [[TestNSView alloc] init];
-        lower.fillColor = SAD_COLOR;
+        lower.fillColor = ERROR_COLOR;
         window.contentView = lower;
         [lower release];
 
         // Upper view which is visble
         TestNSView *upper = [[TestNSView alloc] init];
         upper.frame = NSMakeRect(0, 0, 100, 100);
-        upper.fillColor = HAPPY_COLOR;
+        upper.fillColor = OK_COLOR;
         [lower addSubview:upper];
         [upper release];
 
@@ -2064,9 +2067,9 @@ void tst_QCocoaWindow::expose_stacked()
 {
     WINDOW_CONFIGS  { LOOP {
         TestWindowSpy::TestWindowBase *lower = TestWindowSpy::createTestWindow(WINDOW_CONFIG);
-        lower->fillColor = toQColor(SAD_COLOR);
+        lower->fillColor = toQColor(ERROR_COLOR);
         TestWindowSpy::TestWindowBase *upper = TestWindowSpy::createTestWindow(WINDOW_CONFIG);
-        upper->fillColor = toQColor(HAPPY_COLOR);
+        upper->fillColor = toQColor(OK_COLOR);
 
         upper->qwindow->setParent(lower->qwindow);
         upper->qwindow->setGeometry(0, 0, 100, 100);
@@ -2207,30 +2210,30 @@ void tst_QCocoaWindow::paint_coverage()
         // Show window with solid color
         TestWindowSpy::TestWindowBase *window = TestWindowSpy::createTestWindow(windowconfiguration);
         QRect geometry(20, 20, 200, 200);
-        window->fillColor = toQColor(MEH_COLOR);
+        window->fillColor = toQColor(FILLER_COLOR);
         window->qwindow->setGeometry(geometry);
         window->qwindow->show();
         WAIT WAIT
 
         // Verify that the pixels on screen match
         QRect imageGeometry(QPoint(0, 0), geometry.size());
-        QVERIFY(verifyImage( grabWindow(window->qwindow), imageGeometry, toQColor(MEH_COLOR)));
+        QVERIFY(verifyImage( grabWindow(window->qwindow), imageGeometry, toQColor(FILLER_COLOR)));
 
         // Fill subrect with new color
-        window->fillColor = toQColor(HAPPY_COLOR);
+        window->fillColor = toQColor(OK_COLOR);
         QRect updateRect(50, 50, 50, 50);
         window->update(updateRect);
         WAIT WAIT
 
         // Verify that the window was partially repainted
-        QVERIFY(verifyImage(grabWindow(window->qwindow), updateRect, toQColor(HAPPY_COLOR)));
+        QVERIFY(verifyImage(grabWindow(window->qwindow), updateRect, toQColor(OK_COLOR)));
         QRect notUpdated(110, 110, 50, 50);
-        QVERIFY(verifyImage(grabWindow(window->qwindow), notUpdated, toQColor(MEH_COLOR)));
+        QVERIFY(verifyImage(grabWindow(window->qwindow), notUpdated, toQColor(FILLER_COLOR)));
 
 #ifdef HAVE_TRANSFER_NATIVE_VIEW
         // Call repaint() and verify that the window has been repainted on return.
         window->repaint();
-        QVERIFY(verifyImage(grabWindow(window->qwindow), imageGeometry, toQColor(HAPPY_COLOR)));
+        QVERIFY(verifyImage(grabWindow(window->qwindow), imageGeometry, toQColor(OK_COLOR)));
 #endif
         delete window;
         WAIT
