@@ -23,6 +23,10 @@ SOURCES += \
     $$PWD/nativeevents/qnativeevents_mac.cpp
 LIBS += -framework Carbon
 
+# autotest support code
+HEADERS += $$PWD/testsupport.h
+OBJECTIVE_SOURCES += $$PWD/testsupport.mm
+
 # QCocoaWindow unit test
 OBJECTIVE_SOURCES += $$PWD/tst_qcocoawindow.mm
 LIBS += -framework AppKit
