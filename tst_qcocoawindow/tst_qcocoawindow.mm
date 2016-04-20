@@ -585,6 +585,65 @@ namespace TestWindowSpy
             paintEventCount = 0;
         }
 
+        // "take" functions returns wheter an event has been registered
+        // and decrements the event counter if so.
+        bool takeMouseDownEvent()
+        {
+            if (mouseDownCount == 0)
+                return false;
+            --mouseDownCount;
+            return true;
+        }
+
+        bool takeMouseUpEvent()
+        {
+            if (mouseUpCount == 0)
+                return false;
+            --mouseUpCount;
+            return true;
+        }
+
+        bool takeKeyDownEvent()
+        {
+            if (keyDownCount == 0)
+                return false;
+            --keyDownCount;
+            return true;
+        }
+
+        bool takeKeyUpEvent()
+        {
+            if (keyUpCount == 0)
+                return false;
+            --keyUpCount;
+            return true;
+        }
+
+        bool takeExposeEvent()
+        {
+            if (exposeEventCount == 0)
+                return false;
+            --exposeEventCount;
+            return true;
+        }
+
+        bool takeObscureEvent()
+        {
+            if (obscureEventCount == 0)
+                return false;
+            --obscureEventCount;
+            return true;
+        }
+
+        bool takePaintEvent()
+        {
+            if (paintEventCount == 0)
+
+                return false;
+            --paintEventCount;
+            return true;
+        }
+
         virtual void update(QRect rect)
         {
             // Will be overridden by subclass
@@ -1950,42 +2009,42 @@ void tst_QCocoaWindow::expose_native_stacked()
 // Test that a window gets expose (and paint) events on show, and obscure events on hide
 void tst_QCocoaWindow::expose()
 {
-//    WINDOW_CONFIGS 
+//    WINDOW_CONFIGS
     {
     LOOP {
         TestWindowSpy::TestWindowBase *window = TestWindowSpy::createTestWindow(TestWindowSpy::RasterClassic);
 
-        QCOMPARE(window->exposeEventCount, 0);
-        QCOMPARE(window->obscureEventCount, 0);
-        QCOMPARE(window->paintEventCount, 0);
+        QVERIFY(!window->takeExposeEvent());
+        QVERIFY(!window->takeObscureEvent());
+        QVERIFY(!window->takePaintEvent());
 
         // Show the window, expect one expose and one paint event.
         window->qwindow->show();
         WAIT WAIT  WAIT WAIT
 
-        QCOMPARE(window->exposeEventCount, 1);
-        QCOMPARE(window->obscureEventCount, 0);
-        QCOMPARE(window->paintEventCount, 1);
+        QVERIFY(window->takeExposeEvent());
+        QVERIFY(!window->takeObscureEvent());
+        QVERIFY(window->takePaintEvent());
 
-        // Hide the window, +1 obscure event
+        // Hide the window, expect one obscure evnet
         window->qwindow->hide();
         WAIT
-        QCOMPARE(window->exposeEventCount, 1);
-        QCOMPARE(window->obscureEventCount, 1);
-        QCOMPARE(window->paintEventCount, 1);
+        QVERIFY(!window->takeExposeEvent());
+        QVERIFY(window->takeObscureEvent());
+        QVERIFY(!window->takePaintEvent());
 
-        // Expose event on re-show, +1 expose event
+        // Show the window, expect one expose event
         window->qwindow->show();
         WAIT WAIT
-        QCOMPARE(window->exposeEventCount, 2);
-        QCOMPARE(window->obscureEventCount, 1);
+        QVERIFY(window->takeExposeEvent());
+        QVERIFY(!window->takeObscureEvent());
 
         if (TestWindowSpy::isRasterWindow(TestWindowSpy::RasterClassic)) {
             // QRasterWindow may cache via QBackingStore, accept zero or one extra paint evnet
-            QVERIFY(window->paintEventCount == 1 || window->paintEventCount == 2);
+            window->takePaintEvent();
         } else {
             // Expect No caching for OpenGL. ### TODO: apparently not.
-            QVERIFY(window->paintEventCount == 1 || window->paintEventCount == 2);
+            window->takePaintEvent();
         }
 
         // Hide the window, expect +1 obscure event.
@@ -1994,7 +2053,7 @@ void tst_QCocoaWindow::expose()
         window->qwindow->close();
         WAIT WAIT
 
-        QCOMPARE(window->obscureEventCount, 2);
+        QVERIFY(window->takeObscureEvent());
 
         delete window;
     } // LOOP
@@ -2054,7 +2113,7 @@ void tst_QCocoaWindow::expose_resize()
         WAIT WAIT WAIT // wait-for-painted
 
         twindow->resetCounters();
-        QCOMPARE(twindow->exposeEventCount, 0);
+        QVERIFY(!twindow->takeExposeEvent());
 
         NSWindow *nswindow = getNSWindow(qwindow);
         QRect geometry2(100, 100, 200, 200);
@@ -2062,8 +2121,8 @@ void tst_QCocoaWindow::expose_resize()
         [nswindow setFrame:frame display:NO animate:NO];
         WAIT
 
-        QCOMPARE(twindow->exposeEventCount, 1);
-        QCOMPARE(twindow->paintEventCount, 1);
+        QVERIFY(twindow->takeExposeEvent());
+        QVERIFY(twindow->takePaintEvent());
 
         delete qwindow;
         WAIT
