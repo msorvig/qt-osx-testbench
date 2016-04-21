@@ -322,6 +322,7 @@ namespace TestWindowSpy
             WindowSubclass::setGeometry(100, 100, 100, 100);
 
             forwardEvents = false;
+            fillColor = QColor(Qt::green);
 
             qwindow = this;
         }
@@ -367,7 +368,7 @@ namespace TestWindowSpy
     public:
         TestRasterImpl()
         {
-            fillColor = QColor(Qt::green);
+
         }
 
         void update(QRect rect)
