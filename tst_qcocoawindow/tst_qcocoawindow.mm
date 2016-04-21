@@ -155,7 +155,7 @@ private slots:
     // a frame. However, there is no guarantee that drawRect _will_ be called on a second
     // visiblity event after a hide - Cocoa may decide to used cached content.
     //
-    void expose_native();
+    void expose_native(); void expose_native_data();
     void expose_native_stacked();
     void expose();
     void expose_stacked();
@@ -1571,10 +1571,13 @@ void tst_QCocoaWindow::eventForwarding()
 // hidden views, on initial show and repeated shows.
 void tst_QCocoaWindow::expose_native()
 {
+    QFETCH(bool, useLayer);
+
     LOOP {
         // Test a window with a content view.
         NSWindow *window = [[TestNSWidnow alloc] init];
         TestNSView *view = [[TestNSView alloc] init];
+        view.wantsLayer = useLayer;
         window.contentView = view;
         [view release];
         QCOMPARE(view.drawRectCount, 0);
