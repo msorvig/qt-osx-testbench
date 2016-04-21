@@ -127,6 +127,7 @@ private slots:
     void visibility_setVisible();
     void visibility_created_setGeometry();
     void visibility_created_propagateSizeHints();
+    void visibility_created_drawrect();
 
 
     // Event handling
@@ -1285,6 +1286,30 @@ void tst_QCocoaWindow::visibility_created_propagateSizeHints()
 
         NSWindow *nativeWindow = getNSWindow(window);
         QVERIFY(nativeWindow);
+        QVERIFY(!window->isVisible());
+        QVERIFY(!nativeWindow.isVisible);
+
+        delete window;
+        WAIT
+    }
+    }
+}
+
+// Verify visibility change on drawRect
+void tst_QCocoaWindow::visibility_created_drawrect()
+{
+    // Windows controlled by Qt do not become visible if there is a drawRect call:
+    // Qt controls the visiblity.
+    WINDOW_CONFIGS  {
+    LOOP {
+        TestWindowSpy::TestWindowBase *w = TestWindowSpy::createTestWindow(WINDOW_CONFIG);
+        QWindow *window = w->qwindow;
+        window->create();
+
+        NSWindow *nativeWindow = getNSWindow(window);
+        NSView *nativeView = getNSView(window);
+        [nativeView setNeedsDisplay:YES];
+        WAIT
         QVERIFY(!window->isVisible());
         QVERIFY(!nativeWindow.isVisible);
 
