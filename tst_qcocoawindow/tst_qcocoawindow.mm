@@ -1593,6 +1593,13 @@ void tst_QCocoaWindow::eventForwarding()
     }
 }
 
+void tst_QCocoaWindow::expose_native_data()
+{
+    QTest::addColumn<bool>("useLayer");
+    QTest::newRow("classic") << false;
+    QTest::newRow("layer") << true;
+}
+
 // Test native expose behavior - the number of drawRect calls for visible and
 // hidden views, on initial show and repeated shows.
 void tst_QCocoaWindow::expose_native()
