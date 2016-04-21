@@ -158,7 +158,7 @@ private slots:
     //
     void expose_native(); void expose_native_data();
     void expose_native_stacked();
-    void expose();
+    void expose(); void expose_data();
     void expose_stacked();
 
     void expose_resize_data();
@@ -1688,13 +1688,21 @@ void tst_QCocoaWindow::expose_native_stacked()
     }
 }
 
+void tst_QCocoaWindow::expose_data()
+{
+    QTest::addColumn<TestWindowSpy::WindowConfiguration>("windowconfiguration");
+    WINDOW_CONFIGS {
+        QTest::newRow(windowConfigurationName(WINDOW_CONFIG).constData()) << WINDOW_CONFIG;
+    }
+}
+
 // Test that a window gets expose (and paint) events on show, and obscure events on hide
 void tst_QCocoaWindow::expose()
 {
-//    WINDOW_CONFIGS
+    QFETCH(TestWindowSpy::WindowConfiguration, windowconfiguration);
     {
     LOOP {
-        TestWindowSpy::TestWindowBase *window = TestWindowSpy::createTestWindow(TestWindowSpy::RasterClassic);
+        TestWindowSpy::TestWindowBase *window = TestWindowSpy::createTestWindow(windowconfiguration);
 
         QVERIFY(!window->takeExposeEvent());
         QVERIFY(!window->takeObscureEvent());
