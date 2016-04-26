@@ -93,6 +93,7 @@
     window.contentView = view;
     [view release];
     [window makeKeyAndOrderFront:nil];
+    [window makeFirstResponder: window.contentView];
 }
 
 - (void)applicationWillTerminate:(NSNotification *)notification
