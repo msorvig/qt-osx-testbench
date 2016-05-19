@@ -4,11 +4,8 @@ Qt on OS X Test Bench
 The purpose of this repo is develop new tests for the Qt OS X ("cocoa") platform plugin. The main
 tests are:
 
-* auto/qcocoawindow
-* manual/testbench
-
- There
-is currently a manual test ("qt-osx-testbench") and an auto test ("tst_qcocoawindow").
+* QWindow on OS X manual test: manual/testbench
+* QCocoaWindow auto test: auto/qcocoawindow
 
 Manual Test: qt-osx-testbench
 -----------------------------
