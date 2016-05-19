@@ -1,11 +1,18 @@
 Qt on OS X Test Bench
 ============================
 
-The purpose of this repo is develop new tests for the Qt OS X ("cocoa") platform plugin. There
+The purpose of this repo is develop new tests for the Qt OS X ("cocoa") platform plugin. The main
+tests are:
+
+* auto/qcocoawindow
+* manual/testbench
+
+ There
 is currently a manual test ("qt-osx-testbench") and an auto test ("tst_qcocoawindow").
 
 Manual Test: qt-osx-testbench
 -----------------------------
+
 The manual test tests QWindow in various _external_ configurations
 
 * A stand-alone top-level QWindow
@@ -33,9 +40,8 @@ TODO:
 
 * Proper NSView stacking using sortSubviewsUsingFunction, instead of the current orderFront hack
 
-* Make QOpenGLWindow animate and resize properly
-  * Make QQuickWindow animate and resize properly
-  * Make QGLWidget animate and resize properly
+* Make QQuickWindow animate and resize properly
+* Make QGLWidget animate and resize properly
 
 Auto Test: qt-osx-tst_qcocoawindow
 ---------------------------------

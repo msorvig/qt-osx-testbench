@@ -5,12 +5,11 @@ QT += core gui gui-private testlib platformsupport-private
 OBJECTS_DIR = .obj
 MOC_DIR = .moc
 
-QMAKE_DOCS = $$PWD/tst_qcocoawindow.qdocconf
-
 # cocoaspy
-INCLUDEPATH += $$PWD/..
-HEADERS += $$PWD/../cocoaspy.h
-OBJECTIVE_SOURCES += $$PWD/../cocoaspy.mm
+### fixme
+INCLUDEPATH += $$PWD/../../manual/testbench
+HEADERS += $$PWD/../../manual/testbench/cocoaspy.h
+OBJECTIVE_SOURCES += $$PWD/../../manual/testbench/cocoaspy.mm
 
 # native events
 INCLUDEPATH += $$PWD/nativeevents
