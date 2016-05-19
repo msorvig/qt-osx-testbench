@@ -46,6 +46,7 @@ protected:
 
     void keyPressEvent(QKeyEvent *);
 
+    void resizeEvent(QResizeEvent *event);
     void paintEvent(QPaintEvent *event);
 
 private:
@@ -54,4 +55,5 @@ private:
     QString m_text;
     int m_backgroundColorIndex;
     bool m_mousePressed;
+    QRect m_rect;
 };

@@ -47,12 +47,13 @@ QColor colorTable[] =
     QColor("#c0ef8f")
 };
 
-// RasterWidnow is a simple QRasterWindow subclass with
+// RasterWindow is a simple QRasterWindow subclass with
 // full and partial updates.
 RasterWindow::RasterWindow(const QByteArray &property, QRasterWindow *parent)
     : QRasterWindow(parent)
     , m_backgroundColorIndex(0)
     , m_mousePressed(false)
+    , m_rect(0, 0, 40, 40)
 {
     setProperty(property.constData(), true);
     initialize();
@@ -65,25 +66,19 @@ void RasterWindow::initialize()
 void RasterWindow::mousePressEvent(QMouseEvent *event)
 {
     m_mousePressed = true;
-
-#ifdef HAVE_PARTIAL_UPDATE
-    QRect updateRect(0,0,20,20);
-    updateRect.moveCenter(event->pos());
-    update(updateRect);
-#else
-    update();
-#endif
 }
 
 void RasterWindow::mouseMoveEvent(QMouseEvent *event)
 {
     if (!m_mousePressed)
         return;
+    
+    QRect oldRect = m_rect;
+    m_rect.moveCenter(event->pos());
 
 #ifdef HAVE_PARTIAL_UPDATE
-    QRect updateRect(0,0,10,10);
-    updateRect.moveCenter(event->pos());
-    update(updateRect);
+    update(oldRect);
+    update(m_rect);
 #else
     update();
 #endif
@@ -92,13 +87,6 @@ void RasterWindow::mouseMoveEvent(QMouseEvent *event)
 void RasterWindow::mouseReleaseEvent(QMouseEvent *event)
 {
     m_mousePressed = false;
-#ifdef HAVE_PARTIAL_UPDATE
-    QRect updateRect(0,0,20,20);
-    updateRect.moveCenter(event->pos());
-    update(updateRect);
-#else
-    update();
-#endif
 }
 
 void RasterWindow::keyPressEvent(QKeyEvent *event)
@@ -118,11 +106,15 @@ void RasterWindow::keyPressEvent(QKeyEvent *event)
     update();
 }
 
+void RasterWindow::resizeEvent(QResizeEvent *event)
+{
+    ++m_backgroundColorIndex;
+}
+
 void RasterWindow::paintEvent(QPaintEvent *event)
 {
 //    qDebug() << "paintEvent" << event->rect();
-    ++m_backgroundColorIndex;
-
     QPainter p(this);
     drawSimplePainterContent(&p, m_backgroundColorIndex, this->size());
+    p.fillRect(m_rect, Qt::gray);
 }
