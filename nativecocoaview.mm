@@ -168,7 +168,7 @@ extern bool g_animate;
     QSize contentiSize(200, 200);
     QImage content(contentiSize, QImage::Format_ARGB32_Premultiplied);
     QPainter p(&content);
-    p.fillRect(QRect(QPoint(0,0), contentiSize), Qt::red);
+    p.fillRect(QRect(QPoint(0,0), contentiSize), Qt::blue);
     self.contents = content.toNSImage();
 }
 
@@ -188,31 +188,33 @@ extern bool g_animate;
 
 - (id)init
 {
-    [super initWithFrame: NSMakeRect(0, 0, 1, 1)];
-    [self setWantsLayer: true];
-
     // RasterLayerView supports two modes: either (1) use the standard backing
     // layer and implement wantsUpdateLayer and updateLayer, or (2) use a
     // custom layer, implement makeBackingLayer and set a custom delegate
     // which implements updatePaintedContents.
+    // ### TODO: mode (1) is currenly broken in this implementaiton.
+    m_useCustomLayer = true;
+
+    [super initWithFrame: NSMakeRect(0, 0, 1, 1)];
+    [self setWantsLayer: true];
+
+//    self.layerContentsRedrawPolicy = NSViewLayerContentsRedrawOnSetNeedsDisplay;
 
     // Mode (2): Cocoa will set the delagate during setWantsLayer; reset it here
     // to our delegate:
-    // self.layer.delegate = [[QPainterLayerDelegate alloc] init];
+    if (m_useCustomLayer)
+        self.layer.delegate = [[QPainterLayerDelegate alloc] init];
     return self;
 }
 
-/*
-// mode (2)
 - (CALayer *)makeBackingLayer
 {
-    qDebug() << "RasterLayerView::makeBackingLayer";
-
-     // The layer for this view should be a QPainterLayer
-    return [[CALayer alloc] init];
-    return [[QPainterLayer alloc] init];
+    if (m_useCustomLayer)
+        return [[QPainterLayer alloc] init];
+    else
+        return [super makeBackingLayer];
 }
-*/
+
 - (BOOL)wantsUpdateLayer
 {
     return YES;
@@ -220,8 +222,8 @@ extern bool g_animate;
 
 - (void)updateLayer
 {
-//    qDebug() << "RasterLayerView::updateLayer";
-    QSize contentSize(200, 200);
+    NSSize size = [self convertSizeToBacking:self.frame.size];
+    QSize contentSize(size.width, size.height);
     int frame = 0;
     QImage content = drawSimpleImageContent(frame, contentSize);
     self.layer.contents = content.toNSImage();
@@ -288,11 +290,9 @@ extern bool g_animate;
     Q_UNUSED(timeInterval);
     Q_UNUSED(timeStamp);
 
-    if (g_animate) {
-        ++frame;
-        return YES; // Yes, we have a frame
-    }
+    return YES; // Yes, we have a frame
 }
+
 
 - (void)drawInOpenGLContext:(NSOpenGLContext *)context
                 pixelFormat:(NSOpenGLPixelFormat *)pixelFormat
@@ -304,7 +304,12 @@ extern bool g_animate;
     Q_UNUSED(timeInterval);
     Q_UNUSED(timeStamp);
 
-    drawSimpleGLContent(frame);  // Here it is
+    if (g_animate) {
+        ++frame;
+    }
+//    qDebug() << "drawInOpenGLContext";
+
+   drawSimpleGLContent(frame);  // Here it is
 }
 
 @end
@@ -367,7 +372,7 @@ CVReturn mainThreadTimerFireCallback(CVDisplayLinkRef displayLink, const CVTimeS
                                          initWithAttributes:attributes];
 
     [super initWithFrame:NSMakeRect(0,0,0,0) pixelFormat:pixelFormat];
-//    [self setWantsLayer: true];
+    [self setWantsBestResolutionOpenGLSurface:true];
 
 #ifdef TIMER
     [[NSTimer scheduledTimerWithTimeInterval:1.0 / 60 target:self
@@ -397,6 +402,15 @@ CVReturn mainThreadTimerFireCallback(CVDisplayLinkRef displayLink, const CVTimeS
 {
     Q_UNUSED(rect);
     ++frame;
+
+    // glViewport() is called for us, but if we want to do it
+    // this seems to be how. Also, it looks like convertSizeToBacking
+    // does not respect setting setWantsBestResolutionOpenGLSurface
+    // to false (or omit calling it)
+    NSSize size1 = [self convertSizeToBacking:self.frame.size];
+    // NSSize size2 = self.frame.size;
+    [[self openGLContext] update];
+    glViewport(0, 0, size1.width, size1.height);
 
     drawSimpleGLContent(frame);
 
@@ -429,8 +443,6 @@ CVReturn mainThreadTimerFireCallback(CVDisplayLinkRef displayLink, const CVTimeS
 //    GLint val = 0;
 //    [m_glcontext setValues:&val forParameter:NSOpenGLCPSwapInterval];
 
-//    [self setWantsLayer: true];
-
 	CVDisplayLinkCreateWithActiveCGDisplays(&m_displayLink);
 	CVDisplayLinkSetOutputCallback(m_displayLink, &mainThreadTimerFireCallback, self);
     CVDisplayLinkSetCurrentCGDisplay(m_displayLink, kCGDirectMainDisplay); CVDisplayLinkStart(m_displayLink);
@@ -462,7 +474,7 @@ CVReturn mainThreadTimerFireCallback(CVDisplayLinkRef displayLink, const CVTimeS
     if (m_currentViewportSize.width != size.width ||
         m_currentViewportSize.height != size.height) {
         m_currentViewportSize = size;
-        [m_glcontext update];
+       [m_glcontext update];
     }
 
     glViewport(0, 0, m_currentViewportSize.width, m_currentViewportSize.height);
@@ -470,6 +482,7 @@ CVReturn mainThreadTimerFireCallback(CVDisplayLinkRef displayLink, const CVTimeS
     drawSimpleGLContent(frame);
 
     [m_glcontext flushBuffer];
+
     [NSOpenGLContext clearCurrentContext];
 }
 

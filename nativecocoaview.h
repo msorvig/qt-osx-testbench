@@ -1,6 +1,4 @@
-
 #import <Cocoa/Cocoa.h>
-
 
 // A Simple NSView that fills with solid color and prints
 // Mouse and Keyboard events.
@@ -25,6 +23,7 @@
 @interface RasterLayerView : NSView
 {
     QPainterLayer *m_layer;
+    bool m_useCustomLayer;
 }
 @end
 

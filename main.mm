@@ -62,10 +62,10 @@ bool g_animate = true; // animations enabled
 // may find itself in.
 enum QWindowConfiguration
 {
-    TopLevelWindowsAreQNSViews,             // Embed QWindows in a NSView contentview
-    TopLevelWindowsAreTopLevelNSWindows,    // Embed QWindows in a separate NSWindows
-    TopLevelWindowsAreChildNSWindows,       // Embed QWindows in a single NSWindow
-    StandardQWindowShow,                    // Normal QWindow->show() use case
+    TopLevelWindowsAreQNSViews,             // Embed QWindows in NSViews
+    TopLevelWindowsAreTopLevelNSWindows,    // Embed QWindows in top-level NSWindows
+    TopLevelWindowsAreChildNSWindows,       // Embed QWindows in child NSWindows
+    StandardQWindowShow,                    // Normal QWindow::show() use case
 };
 QWindowConfiguration g_windowConfiguration = TopLevelWindowsAreQNSViews;
 
@@ -102,6 +102,7 @@ NSTextField *g_nativeInstanceStatus = 0;
 
 
 
+// A NSTextField which notifies on changes via a callback
 @interface NotifyingIntField : NSTextField<NSTextFieldDelegate>
 {
     void (^changeCallback)(int);
@@ -260,7 +261,8 @@ TestBenchControllerView *theControllerViewHack = 0; // There is only one, so OK.
                       << "Qt QtQuickWindow"
                       << "Qt QOpenGLWidget"
                       << "Qt QtQuickWidget"
-                      << "The Mix";
+                      << "Mixed QWindow"
+                      << "Mixed QWidget";
     [self addRadioButtonGroup:testCases
              withActionTarget:@selector(changeTestCase:)];
 
@@ -316,8 +318,7 @@ void createControllerWindow()
                                        backing:NSBackingStoreBuffered
                                          defer:NO];
 
-    NSString *title = @"Test Bench Controller";
-    [window setTitle:title];
+    [window setTitle:@"Test Bench Controller"];
     [window setBackgroundColor:[NSColor blueColor]];
 
     TestBenchControllerView *view = [[TestBenchControllerView alloc] init];
@@ -372,6 +373,7 @@ inline QPlatformNativeInterface::NativeResourceForIntegrationFunction resolvePla
     } else {
         // Add controller view for child view
         NSView *controllerView = [[TestBenchMDIView alloc] initWithView: view];
+        [view release];
         m_childCascadePoint += QPoint(50, 50);
         [controllerView setFrame : NSMakeRect(m_childCascadePoint.x(), m_childCascadePoint.y(), 300, 300)];
         [[m_topLevelWindow contentView] addSubview : controllerView];
@@ -501,7 +503,7 @@ inline QPlatformNativeInterface::NativeResourceForIntegrationFunction resolvePla
 {
     for (int i = 0; i < g_testViewCount; ++i) {
         QQuickView *view = new QQuickView;
-        view->setSource(QUrl::fromLocalFile("../../../main.qml"));
+        view->setSource(QUrl::fromLocalFile("main.qml"));
         [self addChildWindow: view];
     }
 }
@@ -523,11 +525,18 @@ inline QPlatformNativeInterface::NativeResourceForIntegrationFunction resolvePla
     }
 }
 
-- (void) theMix
+- (void) mixedQWindow
+{
+    for (int i = 0; i < g_testViewCount; ++i) {
+        [self addChildWindow: new OpenGLWindow()];
+        [self addChildWindow: new RasterWindow()];
+    }
+}
+
+- (void) mixedQWidgets
 {
     for (int i = 0; i < g_testViewCount; ++i) {
         [self addChildView: [[AnimatedOpenGLVew alloc] init]];
-        [self addChildWindow: new RasterWindow()];
         [self addChildWindow: new OpenGLWindow()];
         [self addChildWidget: new RedWidget()];
     }
@@ -592,7 +601,8 @@ inline QPlatformNativeInterface::NativeResourceForIntegrationFunction resolvePla
         case 11: [self qtQuickWindow]; break;
         case 12: [self qtOpenGLWidget]; break;
         case 13: [self qtQuickWidget]; break;
-        case 15: [self theMix]; break;
+        case 14: [self mixedQWindow]; break;
+        case 15: [self mixedQWidgets]; break;
         default: break;
     }
 
