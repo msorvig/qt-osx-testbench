@@ -386,7 +386,6 @@ CVReturn mainThreadTimerFireCallback(CVDisplayLinkRef displayLink, const CVTimeS
 - (void)timerFire
 {
     if (g_animate) {
-        ++frame;
         [self setNeedsDisplay:YES];
     }
 }
