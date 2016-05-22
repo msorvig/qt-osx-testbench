@@ -28,25 +28,21 @@ extern bool g_animate;
 - (void)mouseDown:(NSEvent *) ev
 {
     Q_UNUSED(ev)
-    qDebug() << "NativeCocoaView mouse down";
 }
 
 - (void)mouseUp:(NSEvent *) ev
 {
     Q_UNUSED(ev)
-    qDebug() << "NativeCocoaView mouse up";
 }
 
 - (void)keyDown:(NSEvent *) ev
 {
     Q_UNUSED(ev)
-    qDebug() << "NativeCocoaView keyDown";
 }
 
 - (void)keyUp:(NSEvent *) ev
 {
     Q_UNUSED(ev)
-    qDebug() << "NativeCocoaView keyUp";
 }
 
 @end
@@ -97,8 +93,6 @@ extern bool g_animate;
 
 - (void)mouseDown:(NSEvent *) ev
 {
-    qDebug() << "ControllerView mouse down";
-
     NSRect rect = [self frame];
     NSPoint position = [self convertPoint:[ev locationInWindow] fromView:nil];
 
@@ -114,7 +108,6 @@ extern bool g_animate;
 - (void)mouseUp:(NSEvent *) ev
 {
     Q_UNUSED(ev)
-    qDebug() << "ControllerView mouse up";
 }
 
 - (void)mouseDragged:(NSEvent *) ev
