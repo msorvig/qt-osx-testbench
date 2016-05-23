@@ -162,6 +162,7 @@ private slots:
     void expose_stacked();
 
     void expose_resize(); void expose_resize_data();
+    void requestUpdate(); void requestUpdate_data();
 
     void opengl_layermode();
 
@@ -1877,6 +1878,41 @@ void tst_QCocoaWindow::expose_resize()
             // There may be more expose/paint events due to the animation,
             // but this is outside Qt's control so this test is not going
             // to require it.
+        }
+
+        delete qwindow;
+        WAIT
+    }
+}
+
+void tst_QCocoaWindow::requestUpdate_data()
+{
+    QTest::addColumn<TestWindowSpy::WindowConfiguration>("windowconfiguration");
+    WINDOW_CONFIGS {
+        QTest::newRow(windowConfigurationName(WINDOW_CONFIG).constData()) << WINDOW_CONFIG;
+    }
+}
+
+// Verify that calls to QWindow::requestUpdate() trigger paint events.
+void tst_QCocoaWindow::requestUpdate()
+{
+    QFETCH(TestWindowSpy::WindowConfiguration, windowconfiguration);
+    LOOP {
+        // Create test window
+        TestWindowSpy::TestWindowBase *twindow = TestWindowSpy::createTestWindow(windowconfiguration);
+        QWindow *qwindow = twindow->qwindow;
+        QRect geometry(100, 100, 100, 100);
+        qwindow->setGeometry(geometry);
+        qwindow->show();
+        WAIT
+
+        // Run repeated requestUpdate -> paintEvent tests.
+        for (int i = 0; i < 5; ++i) {
+            twindow->resetCounters();
+            qwindow->requestUpdate();
+            WAIT
+            QVERIFY(twindow->takePaintEvent());
+            //QVERIFY(!twindow->takePaintEvent());
         }
 
         delete qwindow;
