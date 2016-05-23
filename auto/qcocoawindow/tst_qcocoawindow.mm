@@ -657,7 +657,6 @@ tst_QCocoaWindow::~tst_QCocoaWindow()
 // view and window counter.
 void tst_QCocoaWindow::nativeViewsAndWindows()
 {
-
     // Verify that we have deterministic NSWindow instance life
     // times - it should be possible to predictably have dealloc
     // called after showing and hiding the window
@@ -745,9 +744,11 @@ void tst_QCocoaWindow::construction()
             window->create();
             QVERIFY(window->handle() != 0);
 
-            // The platform plugin _may_ create native windows and views at this point,
-            // but is also allowed to further defer that. So we don't test.
-
+            // Native View and Window creation is possibly lazy
+#ifdef HAVE_LAZY_NATIVE_VIEWS_AND_WINDOWS
+            QCOMPARE(QCocoaSpy::viewCount(), 0);
+            QCOMPARE(QCocoaSpy::windowCount(), 0);
+#endif
             // Calling show() forces the creation of the native views and windows.
             window->show();
             waitForWindowVisible(window);
@@ -792,8 +793,11 @@ void tst_QCocoaWindow::construction()
             window->create();
             QVERIFY(window->handle() != 0);
 
-            // The platform plugin _may_ create native windows and views at this point,
-            // but is also allowed to further defer that. So we don't test.
+            // Native View and Window creation is possibly lazy
+#ifdef HAVE_LAZY_NATIVE_VIEWS_AND_WINDOWS
+            QCOMPARE(QCocoaSpy::viewCount(), 0);
+            QCOMPARE(QCocoaSpy::windowCount(), 0);
+#endif
 
             // Calling show() forces the creation of the native views and windows.
             window->show();
@@ -1227,12 +1231,16 @@ void tst_QCocoaWindow::visibility_setVisible()
 
          window->create();
          NSWindow *nativeWindow = getNSWindow(window);
+#ifdef HAVE_LAZY_NATIVE_VIEWS_AND_WINDOWS
+         QVERIFY(!nativeWindow);
+#else
          QVERIFY(nativeWindow);
          QVERIFY(!window->isVisible());
          QVERIFY(!nativeWindow.isVisible);
-
+#endif
          window->setVisible(true);
          WAIT
+         nativeWindow = getNSWindow(window);
          QVERIFY(window->isVisible());
          QVERIFY(nativeWindow.isVisible);
 
@@ -1259,10 +1267,13 @@ void tst_QCocoaWindow::visibility_created_setGeometry()
         WAIT
 
         NSWindow *nativeWindow = getNSWindow(window);
+#ifdef HAVE_LAZY_NATIVE_VIEWS_AND_WINDOWS
+        QVERIFY(!nativeWindow);
+#else
         QVERIFY(nativeWindow);
         QVERIFY(!window->isVisible());
         QVERIFY(!nativeWindow.isVisible);
-
+#endif
         delete window;
         WAIT
     }
@@ -1285,10 +1296,13 @@ void tst_QCocoaWindow::visibility_created_propagateSizeHints()
         WAIT
 
         NSWindow *nativeWindow = getNSWindow(window);
+#ifdef HAVE_LAZY_NATIVE_VIEWS_AND_WINDOWS
+        QVERIFY(!nativeWindow);
+#else
         QVERIFY(nativeWindow);
         QVERIFY(!window->isVisible());
         QVERIFY(!nativeWindow.isVisible);
-
+#endif
         delete window;
         WAIT
     }
