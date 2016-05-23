@@ -161,8 +161,7 @@ private slots:
     void expose(); void expose_data();
     void expose_stacked();
 
-    void expose_resize_data();
-    void expose_resize();
+    void expose_resize(); void expose_resize_data();
 
     void opengl_layermode();
 
@@ -1802,43 +1801,83 @@ void tst_QCocoaWindow::expose_stacked()
 void tst_QCocoaWindow::expose_resize_data()
 {
     QTest::addColumn<TestWindowSpy::WindowConfiguration>("windowconfiguration");
-#if 0
-    // ### layer configs are broken
     WINDOW_CONFIGS {
         QTest::newRow(windowConfigurationName(WINDOW_CONFIG).constData()) << WINDOW_CONFIG;
     }
-#else
-    QTest::newRow(windowConfigurationName(TestWindowSpy::RasterClassic).constData()) << TestWindowSpy::RasterClassic;
-    QTest::newRow(windowConfigurationName(TestWindowSpy::OpenGLClassic).constData()) << TestWindowSpy::OpenGLClassic;
-#endif
 }
 
-// Verify that there is one expose + paint on window resize.
+// Verify that there is one expose + paint event on window resize.
 void tst_QCocoaWindow::expose_resize()
 {
     QFETCH(TestWindowSpy::WindowConfiguration, windowconfiguration);
 
-    // Test resize by programatically chainging the NSWindow frame
      LOOP {
+        // Create test window with initial geometry
         TestWindowSpy::TestWindowBase *twindow = TestWindowSpy::createTestWindow(windowconfiguration);
         QWindow *qwindow = twindow->qwindow;
-
-        QRect geometry1(100, 100, 100, 100);
-        qwindow->setGeometry(geometry1);
+        QRect geometry(100, 100, 100, 100);
+        qwindow->setGeometry(geometry);
         qwindow->show();
         WAIT WAIT WAIT // wait-for-painted
 
-        twindow->resetCounters();
-        QVERIFY(!twindow->takeExposeEvent());
+        // Resize using QWindow API
+        {
+            twindow->resetCounters();
+            QRect geometry(100, 100, 150, 150);
+            qwindow->setGeometry(geometry);
+            WAIT
+            QVERIFY(twindow->takeExposeEvent());
+            QVERIFY(twindow->takePaintEvent());
+            QVERIFY(!twindow->takeExposeEvent());
+            QVERIFY(!twindow->takePaintEvent());
+        }
 
-        NSWindow *nswindow = getNSWindow(qwindow);
-        QRect geometry2(100, 100, 200, 200);
-        NSRect frame = nswindowFrameGeometry(geometry2, nswindow);
-        [nswindow setFrame:frame display:NO animate:NO];
-        WAIT
+        // Resize using NSWindow API
+        {
+            bool immediateDisplay = NO;
+            twindow->resetCounters();
+            NSWindow *nswindow = getNSWindow(qwindow);
+            QRect geometry(100, 100, 200, 200);
+            NSRect frame = nswindowFrameGeometry(geometry, nswindow);
+            [nswindow setFrame:frame display:immediateDisplay animate:NO];
+            WAIT
+            QVERIFY(twindow->takeExposeEvent());
+            QVERIFY(twindow->takePaintEvent());
+            QVERIFY(!twindow->takeExposeEvent());
+            QVERIFY(!twindow->takePaintEvent());
+        }
 
-        QVERIFY(twindow->takeExposeEvent());
-        QVERIFY(twindow->takePaintEvent());
+        // Resize using NSWindow API, with immediate display.
+        {
+            bool immediateDisplay = YES;
+            twindow->resetCounters();
+            NSWindow *nswindow = getNSWindow(qwindow);
+            QRect geometry(100, 100, 250, 250);
+            NSRect frame = nswindowFrameGeometry(geometry, nswindow);
+            [nswindow setFrame:frame display:immediateDisplay animate:NO];
+            // WAIT not needed due to immediate display.
+            QVERIFY(twindow->takeExposeEvent());
+            QVERIFY(twindow->takePaintEvent());
+            QVERIFY(!twindow->takeExposeEvent());
+            QVERIFY(!twindow->takePaintEvent());
+        }
+
+        // Resize using NSWindow API, with immediate display and animation
+        {
+            bool immediateDisplay = YES;
+            bool animate = YES;
+            twindow->resetCounters();
+            NSWindow *nswindow = getNSWindow(qwindow);
+            QRect geometry(100, 100, 200, 200);
+            NSRect frame = nswindowFrameGeometry(geometry, nswindow);
+            [nswindow setFrame:frame display:immediateDisplay animate:animate];
+            // WAIT not needed due to immediate display.
+            QVERIFY(twindow->takeExposeEvent());
+            QVERIFY(twindow->takePaintEvent());
+            // There may be more expose/paint events due to the animation,
+            // but this is outside Qt's control so this test is not going
+            // to require it.
+        }
 
         delete qwindow;
         WAIT
