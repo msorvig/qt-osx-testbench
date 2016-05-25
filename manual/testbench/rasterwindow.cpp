@@ -49,13 +49,12 @@ QColor colorTable[] =
 
 // RasterWindow is a simple QRasterWindow subclass with
 // full and partial updates.
-RasterWindow::RasterWindow(const QByteArray &property, QRasterWindow *parent)
+RasterWindow::RasterWindow(QRasterWindow *parent)
     : QRasterWindow(parent)
     , m_backgroundColorIndex(0)
     , m_mousePressed(false)
     , m_rect(0, 0, 40, 40)
 {
-    setProperty(property.constData(), true);
     initialize();
 }
 

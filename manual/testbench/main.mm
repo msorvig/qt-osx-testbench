@@ -74,6 +74,8 @@ bool g_useContainingLayers = true; // use layers for the containing native views
                                    // are parent views of the test views the test views
                                    // will be switched to layer mode as well.
 
+bool g_useQWindowLayers = false; // enable layer mode for QWindows.
+
 // Native View animation drivers (mutally exclusive, select one)
 bool g_useNativeAnimationTimer = false; // animate using a timer
 bool g_useNativeAnimationSetNeedsDisplay = false; // animate by calling setNeedsDisplay.
@@ -167,6 +169,11 @@ NSTextField *g_nativeInstanceStatus = 0;
     [g_appDelegate recreateTestWindow];
 }
 
+- (void)changeQWindowLayers:(id)sender {
+    g_useQWindowLayers = ([sender state] == NSOnState);
+    [g_appDelegate recreateTestWindow];
+}
+
 - (void)changeAnimate:(id)sender {
     g_animate = ([sender state] == NSOnState);
     // Don't [g_appDelegate recreateTestWindow]. Test cases read g_animate continuously.
@@ -213,14 +220,14 @@ NSTextField *g_nativeInstanceStatus = 0;
     [myMatrix release];
 }
 
-// Add a check box (on by deafault)
-- (void) addCheckBox: (NSString *)text withActionTarget: (SEL)onToggled
+// Add a check box with text, target, and inital state
+- (void) addCheckBox: (NSString *)text withActionTarget: (SEL)onToggled state: (NSCellStateValue)initialState
 {
     NSRect frame = NSMakeRect(0, 0, 200, 25);
     NSButton *button = [[NSButton alloc] initWithFrame:frame];
     [button setButtonType:NSSwitchButton];
     [button setTitle:text];
-    [button setState:NSOnState];
+    [button setState:initialState];
     [button setAction:onToggled];
     [button setTarget:self];
 
@@ -253,9 +260,7 @@ TestBenchControllerView *theControllerViewHack = 0; // There is only one, so OK.
                       << "Native RasterLayer"
                       << "Native 120fps view"
                       << "Qt OpenGLWindow"
-                      << "Qt OpenGLWindow (force layer mode)"
                       << "Qt RasterWindow"
-                      << "Qt RasterWindow (force layer mode)"
                       << "Qt Widgets"
                       << "Qt Masked Window"
                       << "Qt QtQuickWindow"
@@ -276,10 +281,15 @@ TestBenchControllerView *theControllerViewHack = 0; // There is only one, so OK.
              withActionTarget:@selector(changeWindowConfiguration:)];
 
     [self addLabel:@"Options"];
-    [self addCheckBox:@"Force layer mode: Use layers for container views"
-      withActionTarget:@selector(changeContainingLayers:)];
+    [self addCheckBox:@"Use layers for container views"
+     withActionTarget:@selector(changeContainingLayers:)
+                state:NSOnState];
+    [self addCheckBox:@"Use layers for QWindows"
+     withActionTarget:@selector(changeQWindowLayers:)
+                state:NSOffState];
     [self addCheckBox:@"Animate"
-     withActionTarget:@selector(changeAnimate:)];
+     withActionTarget:@selector(changeAnimate:)
+                 state:NSOnState];
     [self addLabel:@"Instance Count"];
     [self addNumberInput:@"1"
         withActionTarget:@selector(changeInstanceCount:)];
@@ -403,6 +413,9 @@ NSView *getEmbeddableView(QWindow *qtWindow)
 
 - (void) addChildWindow: (QWindow *) window
 {
+    if (g_useQWindowLayers)
+        window->setProperty("_q_mac_wantsLayer", true);
+
     if (g_windowConfiguration == StandardQWindowShow) {
         m_topLevelQWindows.append(window);
         window->show();
@@ -420,6 +433,9 @@ NSView *getEmbeddableView(QWindow *qtWindow)
 
 - (void) addChildWidget: (QWidget *) widget
 {
+    if (g_useQWindowLayers)
+        widget->setProperty("_q_mac_wantsLayer", true);
+
     if (g_windowConfiguration == StandardQWindowShow) {
         m_topLevelWidgets.append(widget);
         widget->show();
@@ -485,13 +501,6 @@ NSView *getEmbeddableView(QWindow *qtWindow)
         [self addChildWindow: new OpenGLWindow()];
 }
 
-// test QOpenGLWindow that requests a layer and enables layer mode
-- (void) qtOpenGLLayerWindow
-{
-    for (int i = 0; i < g_testViewCount; ++i)
-        [self addChildWindow: new OpenGLWindow("_q_mac_wantsLayer")];
-}
-
 // test RasterWindow
 - (void) qtRasterWindow
 {
@@ -499,18 +508,13 @@ NSView *getEmbeddableView(QWindow *qtWindow)
         [self addChildWindow: new RasterWindow()];
 }
 
-// test RasterWindow that requrests a layer and enables layer mode
-- (void) qtRasterLayerWindow
-{
-    for (int i = 0; i < g_testViewCount; ++i)
-        [self addChildWindow: new RasterWindow("_q_mac_wantsLayer")];
-}
-
 // test QtWidgets
 - (void) qtWidget
 {
-    for (int i = 0; i < g_testViewCount; ++i)
-        [self addChildWidget: new RedWidget()];
+    for (int i = 0; i < g_testViewCount; ++i) {
+        QWidget *widget = new RedWidget();
+        [self addChildWidget: widget];
+    }
 }
 
 // test steting a mask on a QWindow. Mouse clicks should
@@ -621,16 +625,14 @@ NSView *getEmbeddableView(QWindow *qtWindow)
         case 3: [self nativeRasterLayer]; break;
         case 4: [self native120fpsView]; break;
         case 5: [self qtOpenGLWindow]; break;
-        case 6: [self qtOpenGLLayerWindow]; break;
-        case 7: [self qtRasterWindow]; break;
-        case 8: [self qtRasterLayerWindow]; break;
-        case 9: [self qtWidget]; break;
-        case 10: [self maskedWindow]; break;
-        case 11: [self qtQuickWindow]; break;
-        case 12: [self qtOpenGLWidget]; break;
-        case 13: [self qtQuickWidget]; break;
-        case 14: [self mixedQWindow]; break;
-        case 15: [self mixedQWidgets]; break;
+        case 6: [self qtRasterWindow]; break;
+        case 7: [self qtWidget]; break;
+        case 8: [self maskedWindow]; break;
+        case 9: [self qtQuickWindow]; break;
+        case 10: [self qtOpenGLWidget]; break;
+        case 11: [self qtQuickWidget]; break;
+        case 12: [self mixedQWindow]; break;
+        case 13: [self mixedQWidgets]; break;
         default: break;
     }
 

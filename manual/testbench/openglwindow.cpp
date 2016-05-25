@@ -4,10 +4,9 @@
 
 extern bool g_animate;
 
-OpenGLWindow::OpenGLWindow(const QByteArray &property)
+OpenGLWindow::OpenGLWindow()
     : QOpenGLWindow(QOpenGLWindow::NoPartialUpdate)
 {
-    setProperty(property.constData(), true);
     frame = 0;
 }
 
