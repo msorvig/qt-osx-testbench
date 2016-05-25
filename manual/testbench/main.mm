@@ -549,7 +549,7 @@ NSView *getEmbeddableView(QWindow *qtWindow)
 {
     for (int i = 0; i < g_testViewCount; ++i) {
         QQuickWidget *quickWidget = new QQuickWidget;
-        quickWidget->setSource(QUrl::fromLocalFile("../../../main.qml"));
+        quickWidget->setSource(QUrl::fromLocalFile("main.qml"));
         [self addChildWidget: quickWidget];
     }
 }
