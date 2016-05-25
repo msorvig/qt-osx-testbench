@@ -569,6 +569,9 @@ NSView *getEmbeddableView(QWindow *qtWindow)
 
 - (void) recreateTestWindow
 {
+    // Save current test window geometry or set up default geometry
+    NSRect frame = m_topLevelWindow ? [m_topLevelWindow frame] : NSMakeRect(500, 500, 500, 500);
+
     // Destroy current test window(s)
     [m_topLevelWindow release];
     m_topLevelWindow = 0;
@@ -591,13 +594,13 @@ NSView *getEmbeddableView(QWindow *qtWindow)
     QCocoaSpy::reset();
 
     // Create new test window(s)
-    NSRect frame = NSMakeRect(500, 500, 500, 500);
     NSWindow *window =
         [[NSWindow alloc] initWithContentRect:frame
                                      styleMask:NSTitledWindowMask | NSClosableWindowMask |
                                                NSMiniaturizableWindowMask | NSResizableWindowMask
                                        backing:NSBackingStoreBuffered
                                          defer:NO];
+    [window setFrame:frame display:NO];
     m_topLevelWindow = window;
 
     NSString *title = @"Qt on OS X Graphics Test Bench";
