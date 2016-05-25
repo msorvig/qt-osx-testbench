@@ -27,3 +27,6 @@ OBJECTIVE_SOURCES += \
     cocoaspy.mm \
 
 LIBS += -framework AppKit -framework QuartzCore
+
+DEFINES += HAVE_TRANSFER_NATIVE_VIEW
+DEFINES += HAVE_QIMAGE_TONSIMAGE

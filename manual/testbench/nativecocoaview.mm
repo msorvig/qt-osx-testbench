@@ -162,7 +162,11 @@ extern bool g_animate;
     QImage content(contentiSize, QImage::Format_ARGB32_Premultiplied);
     QPainter p(&content);
     p.fillRect(QRect(QPoint(0,0), contentiSize), Qt::blue);
+#ifdef HAVE_QIMAGE_TONSIMAGE
     self.contents = content.toNSImage();
+#else
+    qWarning("missing QImage::toNSImage()");
+#endif
 }
 
 @end
@@ -219,7 +223,13 @@ extern bool g_animate;
     QSize contentSize(size.width, size.height);
     int frame = 0;
     QImage content = drawSimpleImageContent(frame, contentSize);
+#ifdef HAVE_QIMAGE_TONSIMAGE
     self.layer.contents = content.toNSImage();
+#else
+    qWarning("missing QImage::toNSImage()");
+#endif
+
+
 }
 
 - (void)drawRect: (NSRect)dirtyRect

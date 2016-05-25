@@ -380,6 +380,27 @@ inline QPlatformNativeInterface::NativeResourceForIntegrationFunction resolvePla
     }
 }
 
+#ifndef HAVE_TRANSFER_NATIVE_VIEW
+
+NSView *getEmbeddableView(QWindow *qtWindow)
+{
+    // Make sure the platform window is created
+    qtWindow->create();
+
+    // Inform the window that it's a subwindow of a non-Qt window. This must be
+    // done after create() because we need to have a QPlatformWindow instance.
+    // The corresponding NSWindow will not be shown and can be deleted later.
+    typedef void (*SetEmbeddedInForeignViewFunction)(QPlatformWindow *window, bool embedded);
+    reinterpret_cast<SetEmbeddedInForeignViewFunction>(resolvePlatformFunction("setEmbeddedInForeignView"))(qtWindow->handle(), true);
+
+    // Get the Qt content NSView for the QWindow from the Qt platform plugin
+    QPlatformNativeInterface *platformNativeInterface = QGuiApplication::platformNativeInterface();
+    NSView *qtView = (NSView *)platformNativeInterface->nativeResourceForWindow("nsview", qtWindow);
+    return qtView; // qtView is ready for use.
+}
+
+#endif
+
 - (void) addChildWindow: (QWindow *) window
 {
     if (g_windowConfiguration == StandardQWindowShow) {
@@ -388,7 +409,11 @@ inline QPlatformNativeInterface::NativeResourceForIntegrationFunction resolvePla
         return;
     }
 
+#ifdef HAVE_TRANSFER_NATIVE_VIEW
     NSView *view = QCocoaWindowFunctions::transferNativeView(window);
+#else
+    NSView *view = getEmbeddableView(window);
+#endif
     [self addChildView: view];
     window->show(); // ### fixme
 }
