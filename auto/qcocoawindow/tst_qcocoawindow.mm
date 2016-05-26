@@ -140,24 +140,28 @@ private slots:
 
     // Grahpics updates and expose
     //
-    // Qts expose event has two meanings:
+    // Native view updates via drawRect:
+    //
+    // Natively NSView offers drawRect, which is called when it's time for view to produce
+    // a frame. Content caching and the parent/child view heirarchy may affect when drawRect
+    // is called. The drawRect_native() and drawRect_native_child() tests explore this
+    // behavior.
+    //
+    // Expose events in Qt. Qts expose event has two meanings:
     //   - Window visibility control: where the expose region indicates if the window
     //     is visible or not. (empty region means 'obscure'). Expose event users can
     //     use this to start/stop animations etc.
     //   - 'Paint now': The window is becoming visible and we need a graphics frame
-    //      to display on screen. Expose event users musty flush a frame before returning.
+    //     to display on screen. Expose event users musty flush a frame before returning.
     //
     // Windows visibility must be be accurate (in particular, windows that are covered
     // by other windows should revice an obscure evnent). Expose event timing must be
     // correct: Qt should paint before the window becomes visible, but not before graphics
     // is set up.
     //
-    // Natively NSView offers drawRect, which is called when its time for view to produce
-    // a frame. However, there is no guarantee that drawRect _will_ be called on a second
-    // visiblity event after a hide - Cocoa may decide to used cached content.
-    //
-    void expose_native(); void expose_native_data();
-    void expose_native_stacked();
+    void drawRect_native(); void drawRect_native_data();
+    void drawRect_native_child(); void drawRect_native_child_data();
+    void child_drawing_native(); void child_drawing_native_data();
     void expose(); void expose_data();
     void expose_stacked();
 
@@ -492,6 +496,7 @@ NSWindow *createTestWindow()
 
 @property (retain) NSColor *fillColor;   // View background fill color
 @property bool forwardEvents;   // Should the View reject and forward events?
+@property bool _isOpaque;
 
 // Event counters
 @property int mouseDownCount;
@@ -510,8 +515,14 @@ NSWindow *createTestWindow()
 
     self.fillColor = OK_COLOR;
     self.forwardEvents = false;
+    self._isOpaque = NO;
 
     return self;
+}
+
+- (BOOL)isOpaque
+{
+    return self._isOpaque;
 }
 
 - (void)drawRect: (NSRect)dirtyRect
@@ -1159,7 +1170,7 @@ void tst_QCocoaWindow::geometry_child_foreign()
 }
 
 // Verify some basic NSwindow.isVisible behavior. See also
-// expose_native() which further tests repaint behavior when
+// drawRect_native() which further tests repaint behavior when
 // hiding and showing windows.
 void tst_QCocoaWindow::visibility_native()
 {
@@ -1607,7 +1618,7 @@ void tst_QCocoaWindow::eventForwarding()
     }
 }
 
-void tst_QCocoaWindow::expose_native_data()
+void tst_QCocoaWindow::drawRect_native_data()
 {
     QTest::addColumn<bool>("useLayer");
     QTest::newRow("classic") << false;
@@ -1616,7 +1627,7 @@ void tst_QCocoaWindow::expose_native_data()
 
 // Test native expose behavior - the number of drawRect calls for visible and
 // hidden views, on initial show and repeated shows.
-void tst_QCocoaWindow::expose_native()
+void tst_QCocoaWindow::drawRect_native()
 {
     QFETCH(bool, useLayer);
 
@@ -1665,16 +1676,31 @@ void tst_QCocoaWindow::expose_native()
     }
 }
 
-// Test native expose behavior for a window with two stacked views - where the lower
-// one is completely hidden.
-void tst_QCocoaWindow::expose_native_stacked()
+void tst_QCocoaWindow::drawRect_native_child_data()
 {
+    QTest::addColumn<bool>("wantsLayer");
+    QTest::addColumn<bool>("isOpaque");
+    QTest::newRow("classic/opaque") << false << true;
+    QTest::newRow("classic/non-opaque") << false << false;
+    QTest::newRow("layer/opaque") << true << true;
+    QTest::newRow("layer/non-opaque") << true << false;
+}
+
+// Test native drawRect behavior for a window with two stacked views - where the lower
+// one is completely hidden.
+void tst_QCocoaWindow::drawRect_native_child()
+{
+    QFETCH(bool, wantsLayer);
+    QFETCH(bool, isOpaque);
+
     LOOP {
         NSWindow *window = [[TestNSWidnow alloc] init];
 
         // Lower view which is completely covered
         TestNSView *lower = [[TestNSView alloc] init];
         lower.fillColor = ERROR_COLOR;
+        lower.wantsLayer = wantsLayer;
+        lower._isOpaque = isOpaque;
         window.contentView = lower;
         [lower release];
 
@@ -1682,32 +1708,101 @@ void tst_QCocoaWindow::expose_native_stacked()
         TestNSView *upper = [[TestNSView alloc] init];
         upper.frame = NSMakeRect(0, 0, 100, 100);
         upper.fillColor = OK_COLOR;
+        upper.wantsLayer = wantsLayer;
+        upper._isOpaque = isOpaque;
         [lower addSubview:upper];
         [upper release];
 
-        // Inital show
+        // Depending on view configuration Cocoa may omit sending draw
+        // calls to the obscured lower view. Spesifically this happens
+        // in non-layer mode when the upper view declares that it is
+        // opaque, indicating fills its entire are with solid pixels.
+        int expectedLowerDrawRectCount = (!wantsLayer && isOpaque) ? 0 : 1;
+
+        // Inital show.
         [window makeKeyAndOrderFront:nil];
         WAIT
         QCOMPARE(upper.drawRectCount, 1);
-        QCOMPARE(lower.drawRectCount, 1); // for raster (no layers) we get a paint event
-                                          // for the hidden view
-        // Hide
+        QCOMPARE(lower.drawRectCount, expectedLowerDrawRectCount);
+
+        // Hide. Expect no additional drawRect calls.
         [window orderOut:nil];
         WAIT
         QCOMPARE(upper.drawRectCount, 1);
-        QCOMPARE(lower.drawRectCount, 1);
+        QCOMPARE(lower.drawRectCount, expectedLowerDrawRectCount);
 
-        // Show again - accept one or no repaints
+        // Show again. Expect no additional drawRect calls (due to caching)
         [window makeKeyAndOrderFront:nil];
         WAIT
-        QVERIFY(upper.drawRectCount >= 1 && upper.drawRectCount <= 2);
-        QVERIFY(lower.drawRectCount >= 1 && lower.drawRectCount <= 2);
+        QCOMPARE(upper.drawRectCount, 1);
+        QCOMPARE(lower.drawRectCount, expectedLowerDrawRectCount);
 
         [window close];
         [window release];
         WAIT
     }
 }
+
+// Verify assumptions about child NSView drawing, in particular whether
+// invalidating a child view area causes drawRect calls on the parent.
+void tst_QCocoaWindow::child_drawing_native_data()
+{
+    QTest::addColumn<bool>("wantsLayer");
+    QTest::addColumn<bool>("isOpaque");
+    QTest::newRow("classic/opaque") << false << true;
+    QTest::newRow("classic/non-opaque") << false << false;
+    QTest::newRow("layer/opaque") << true << true;
+    QTest::newRow("layer/non-opaque") << true << false;
+}
+
+void tst_QCocoaWindow::child_drawing_native()
+{
+    QFETCH(bool, wantsLayer);
+    QFETCH(bool, isOpaque);
+
+    LOOP {
+        NSWindow *window = [[TestNSWidnow alloc] init];
+
+        // Lower view which is completely covered
+        TestNSView *lower = [[TestNSView alloc] init];
+        lower.fillColor = ERROR_COLOR;
+        lower.wantsLayer = wantsLayer;
+        lower._isOpaque = isOpaque;
+        window.contentView = lower;
+        [lower release];
+
+        // Upper view which is visble
+        TestNSView *upper = [[TestNSView alloc] init];
+        upper.frame = NSMakeRect(0, 0, 100, 100);
+        upper.fillColor = OK_COLOR;
+        upper.wantsLayer = wantsLayer;
+        upper._isOpaque = isOpaque;
+        [lower addSubview:upper];
+        [upper release];
+
+        [window makeKeyAndOrderFront:nil];
+        WAIT
+        lower.drawRectCount = 0;
+        upper.drawRectCount = 0;
+
+        // Invalidate the upper view and check draw calls both views.
+        [upper setNeedsDisplay: YES];
+        WAIT
+        // Depending on view configuration Cocoa may omit sending draw
+        // calls to the obscured lower view. Spesifically this happens
+        // in layer mode where view contents are separately cached, and
+        // when the upper view declares that it is opaque, indicating
+        // it fills its entire area with solid pixels.
+        int expectedLowerDrawRectCount = (wantsLayer || isOpaque) ? 0 : 1;
+        QCOMPARE(upper.drawRectCount, 1);
+        QCOMPARE(lower.drawRectCount, expectedLowerDrawRectCount);
+
+        [window close];
+        [window release];
+        WAIT
+    }
+}
+
 
 void tst_QCocoaWindow::expose_data()
 {
