@@ -168,6 +168,9 @@ private slots:
     void expose_resize(); void expose_resize_data();
     void requestUpdate(); void requestUpdate_data();
 
+    void repaint_native(); void repaint_native_data();
+    void repaint(); void repaint_data();
+
     void opengl_layermode();
 
     // Repaint coverage
@@ -383,7 +386,11 @@ namespace TestWindowSpy
 
         virtual void repaint()
         {
+#ifdef HAVE_QPAINTDEVICEWINDOW_REPAINT
             QRasterWindow::repaint();
+#else
+            qWarning("No QPaintDeviceWindow::repaint(), expect test failures");
+#endif
         }
 
         void paintEvent(QPaintEvent *ev) {
@@ -2013,6 +2020,81 @@ void tst_QCocoaWindow::requestUpdate()
         delete qwindow;
         WAIT
     }
+}
+
+void tst_QCocoaWindow::repaint_native_data()
+{
+    QTest::addColumn<bool>("useLayer");
+    QTest::newRow("classic") << false;
+    QTest::newRow("layer") << true;
+}
+
+// Verify native displayIfNeeded behavior where we expect that
+// displayIfNeeded delivers a drawRect call before it returns.
+void tst_QCocoaWindow::repaint_native()
+{
+    QFETCH(bool, useLayer);
+
+    LOOP {
+        // Test a window with a content view.
+        NSWindow *window = [[TestNSWidnow alloc] init];
+        TestNSView *view = [[TestNSView alloc] init];
+        view.wantsLayer = useLayer;
+        window.contentView = view;
+        [view release];
+        [window makeKeyAndOrderFront:nil];
+        WAIT
+        view.drawRectCount = 0;
+
+        // Calling displayIfNeeded does not repaint
+        [view displayIfNeeded];
+        QCOMPARE(view.drawRectCount, 0);
+
+        // Calling setNeedsDisplay + displayIfNeeded does repaint
+        [view setNeedsDisplay: YES];
+        [view displayIfNeeded];
+        QCOMPARE(view.drawRectCount, 1);
+
+        // Calling displayIfNeeded again does not repaint
+        [view displayIfNeeded];
+        QCOMPARE(view.drawRectCount, 1);
+
+        // Calling display unconditionally repaints.
+        [view display];
+        QCOMPARE(view.drawRectCount, 2);
+    }
+}
+
+void tst_QCocoaWindow::repaint_data()
+{
+    QTest::addColumn<TestWindowSpy::WindowConfiguration>("windowconfiguration");
+    RASTER_WINDOW_CONFIGS {
+        QTest::newRow(windowConfigurationName(WINDOW_CONFIG).constData()) << WINDOW_CONFIG;
+    }
+}
+
+void tst_QCocoaWindow::repaint()
+{
+    QFETCH(TestWindowSpy::WindowConfiguration, windowconfiguration);
+
+    TestWindowSpy::TestWindowBase *window = TestWindowSpy::createTestWindow(windowconfiguration);
+    QRect geometry(20, 20, 200, 200);
+    window->fillColor = toQColor(OK_COLOR);
+    window->qwindow->setGeometry(geometry);
+    window->qwindow->show();
+    WAIT WAIT
+    window->resetCounters();
+
+    // Repaint should trigger one immediate paint event
+    window->repaint();
+    QVERIFY(window->takePaintEvent());
+    QVERIFY(!window->takePaintEvent());
+
+    // For comparison, update does not update until we spin the event loop
+    window->update(geometry);
+    QVERIFY(!window->takePaintEvent());
+    WAIT
+    QVERIFY(window->takePaintEvent());
 }
 
 // Test layer-mode QWindow with a custom OPenGL foramt. Expected behavior
