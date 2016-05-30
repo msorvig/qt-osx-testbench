@@ -2073,12 +2073,16 @@ void tst_QCocoaWindow::repaint_data()
     }
 }
 
+// Verify that calling repaint/QBackingStore::flush syncrhonously repaints and
+// flushes the new content to the window.
 void tst_QCocoaWindow::repaint()
 {
     QFETCH(TestWindowSpy::WindowConfiguration, windowconfiguration);
 
     TestWindowSpy::TestWindowBase *window = TestWindowSpy::createTestWindow(windowconfiguration);
-    QRect geometry(20, 20, 200, 200);
+    QPoint windowPoint(20, 20);
+    QSize windowSize(200, 200);
+    QRect geometry(windowPoint, windowSize);
     window->fillColor = toQColor(OK_COLOR);
     window->qwindow->setGeometry(geometry);
     window->qwindow->show();
@@ -2090,11 +2094,21 @@ void tst_QCocoaWindow::repaint()
     QVERIFY(window->takePaintEvent());
     QVERIFY(!window->takePaintEvent());
 
-    // For comparison, update does not update until we spin the event loop
+    // For comparison, update does not paint until we spin the event loop
     window->update(geometry);
     QVERIFY(!window->takePaintEvent());
     WAIT
     QVERIFY(window->takePaintEvent());
+
+    // Verify that the updated contents are actually flushed to the window/display
+    QRect testGeometry(QPoint(0, 0), windowSize);
+    QVERIFY(verifyImage(grabWindow(window->qwindow), testGeometry, toQColor(OK_COLOR)));
+    window->fillColor = toQColor(FILLER_COLOR);
+    window->repaint();
+    QVERIFY(verifyImage(grabWindow(window->qwindow), testGeometry, toQColor(FILLER_COLOR)));
+
+    delete window;
+    WAIT
 }
 
 // Test layer-mode QWindow with a custom OPenGL foramt. Expected behavior
