@@ -299,7 +299,6 @@ namespace TestWindowSpy
         bool takePaintEvent()
         {
             if (paintEventCount == 0)
-
                 return false;
             --paintEventCount;
             return true;
@@ -532,7 +531,7 @@ NSWindow *createTestWindow()
     return self._isOpaque;
 }
 
-- (void)drawRect: (NSRect)dirtyRect
+- (void)drawRect:(NSRect)dirtyRect
 {
     ++self.drawRectCount;
     [self.fillColor setFill];
@@ -904,7 +903,7 @@ void tst_QCocoaWindow::embed()
             QCOMPARE(QCocoaSpy::windowCount(), 0);
 
             // Make NSAutomaticFocusRing release internal view references now.
-            [window makeFirstResponder: nil];
+            [window makeFirstResponder:nil];
 
             // Close and release the window.
             [window close];
@@ -1023,7 +1022,7 @@ void tst_QCocoaWindow::geometry_toplevel()
         NSWindow *nswindow = getNSWindow(qwindow);
         QRect geometry2(111, 112, 113, 114);
         NSRect frame = nswindowFrameGeometry(geometry2, nswindow);
-        [nswindow setFrame: frame display: YES animate: NO];
+        [nswindow setFrame:frame display:YES animate:NO];
         WAIT WAIT
 
         NSView *nsview = getNSView(qwindow);
@@ -1069,7 +1068,7 @@ void tst_QCocoaWindow::geometry_toplevel_embed()
         // Give the NSWindow new geometry, verify that the view and Qt is updated.
         QRect newGeometry(111, 112, 113, 114);
         NSRect frame = nswindowFrameGeometry(newGeometry, window);
-        [window setFrame: frame display: YES animate: NO];
+        [window setFrame:frame display:YES animate:NO];
         WAIT
 
         QCOMPARE(screenGeometry(window), newGeometry);
@@ -1359,7 +1358,7 @@ void tst_QCocoaWindow::nativeKeyboardEvents()
         TestNSView *view = [[TestNSView alloc] init];
         window.contentView = view;
         [view release];
-        [window makeFirstResponder: view]; // no first responder by default
+        [window makeFirstResponder:view]; // no first responder by default
         [window makeKeyAndOrderFront:nil];
 
         WAIT
@@ -1525,7 +1524,7 @@ void tst_QCocoaWindow::eventForwarding()
         [lower addSubview:upper];
         [upper release];
 
-        [window makeFirstResponder: upper];
+        [window makeFirstResponder:upper];
         [window makeKeyAndOrderFront:nil];
 
         {
@@ -1793,7 +1792,7 @@ void tst_QCocoaWindow::child_drawing_native()
         upper.drawRectCount = 0;
 
         // Invalidate the upper view and check draw calls both views.
-        [upper setNeedsDisplay: YES];
+        [upper setNeedsDisplay:YES];
         WAIT
         // Depending on view configuration Cocoa may omit sending draw
         // calls to the obscured lower view. Spesifically this happens
@@ -2051,7 +2050,7 @@ void tst_QCocoaWindow::repaint_native()
         QCOMPARE(view.drawRectCount, 0);
 
         // Calling setNeedsDisplay + displayIfNeeded does repaint
-        [view setNeedsDisplay: YES];
+        [view setNeedsDisplay:YES];
         [view displayIfNeeded];
         QCOMPARE(view.drawRectCount, 1);
 
