@@ -215,14 +215,19 @@ namespace TestWindowSpy
     public:
         QWindow *qwindow; // pointer-to-QWindow-self.
         QColor fillColor;
-
-        int mouseDownCount;
-        int mouseUpCount;
-        int keyDownCount;
-        int keyUpCount;
-        int exposeEventCount;
-        int obscureEventCount;
-        int paintEventCount;
+        
+        enum EventType
+        {
+            MouseDownEvent,
+            MouseUpEvent,
+            KeyDownEvent,
+            KeyUpEvent,
+            ExposeEvent,
+            ObscureEvent,
+            PaintEvent,
+            EventTypesCount
+        };
+        int eventCounts[EventTypesCount];
 
         TestWindowBase()
         {
@@ -237,70 +242,27 @@ namespace TestWindowSpy
 
         void resetCounters()
         {
-            mouseDownCount = 0;
-            mouseUpCount = 0;
-            keyDownCount = 0;
-            keyUpCount = 0;
-            exposeEventCount = 0;
-            obscureEventCount = 0;
-            paintEventCount = 0;
+            for (int i = 0; i < EventTypesCount; ++i)
+                eventCounts[i] = 0;
         }
-
-        // "take" functions returns wheter an event has been registered
-        // and decrements the event counter if so.
-        bool takeMouseDownEvent()
+        
+        // "Take" functions for checking if there are zero, or one
+        // (exactly), or many events of a particular event type
+        // pending. These have the side effect of decrementing
+        // the event counter.
+        bool takeOneEvent(EventType type)
         {
-            if (mouseDownCount == 0)
+            if (eventCounts[type] != 1)
                 return false;
-            --mouseDownCount;
+            --eventCounts[type];
             return true;
         }
 
-        bool takeMouseUpEvent()
+        bool takeOneOrManyEvents(EventType type)
         {
-            if (mouseUpCount == 0)
+            if (eventCounts[type] < 1)
                 return false;
-            --mouseUpCount;
-            return true;
-        }
-
-        bool takeKeyDownEvent()
-        {
-            if (keyDownCount == 0)
-                return false;
-            --keyDownCount;
-            return true;
-        }
-
-        bool takeKeyUpEvent()
-        {
-            if (keyUpCount == 0)
-                return false;
-            --keyUpCount;
-            return true;
-        }
-
-        bool takeExposeEvent()
-        {
-            if (exposeEventCount == 0)
-                return false;
-            --exposeEventCount;
-            return true;
-        }
-
-        bool takeObscureEvent()
-        {
-            if (obscureEventCount == 0)
-                return false;
-            --obscureEventCount;
-            return true;
-        }
-
-        bool takePaintEvent()
-        {
-            if (paintEventCount == 0)
-                return false;
-            --paintEventCount;
+            eventCounts[type] = 0;
             return true;
         }
 
@@ -322,8 +284,9 @@ namespace TestWindowSpy
     class TestWindowTempl : public WindowSubclass, public virtual TestWindowBase
     {
     public:
+
+        // Controls whether events are accepted
         bool forwardEvents;
-        // Event counter
 
         TestWindowTempl() {
             WindowSubclass::setGeometry(100, 100, 100, 100);
@@ -336,33 +299,29 @@ namespace TestWindowSpy
 
         void keyPressEvent(QKeyEvent * ev) {
             ev->setAccepted(!forwardEvents);
-            keyDownCount += forwardEvents ? 0 : 1;
-            if (!forwardEvents) {
-                qDebug() << "key press";
-            }
+            eventCounts[KeyDownEvent] += forwardEvents ? 0 : 1;
         }
 
         void keyReleaseEvent(QKeyEvent * ev) {
             ev->setAccepted(!forwardEvents);
-            keyUpCount += forwardEvents ? 0 : 1;
+            eventCounts[KeyUpEvent] += forwardEvents ? 0 : 1;
         }
 
         void mousePressEvent(QMouseEvent * ev) {
             ev->setAccepted(!forwardEvents);
-            mouseDownCount += forwardEvents ? 0 : 1;
-            qDebug() << "mouse press";
+            eventCounts[MouseDownEvent] += forwardEvents ? 0 : 1;
         }
 
         void mouseReleaseEvent(QMouseEvent * ev) {
             ev->setAccepted(!forwardEvents);
-            mouseUpCount += forwardEvents ? 0 : 1;
+            eventCounts[MouseUpEvent] += forwardEvents ? 0 : 1;
         }
 
         void exposeEvent(QExposeEvent *event) {
             if (event->region().isEmpty())
-                ++obscureEventCount;
+                ++eventCounts[ObscureEvent];
             else
-                ++exposeEventCount;
+                ++eventCounts[ExposeEvent];
 
             // Call base impl which will call paintEvent()
             WindowSubclass::exposeEvent(event);
@@ -393,7 +352,9 @@ namespace TestWindowSpy
         }
 
         void paintEvent(QPaintEvent *ev) {
-            ++TestWindowBase::paintEventCount;
+            ++TestWindowBase::eventCounts[PaintEvent];
+            
+            qDebug() << "paint" << ev->region().boundingRect();
 
             // Fill the dirty rects with the current fill color.
             QPainter p(this);
@@ -413,7 +374,7 @@ namespace TestWindowSpy
 
         void paintGL()
         {
-            ++TestWindowBase::paintEventCount;
+            ++TestWindowBase::eventCounts[PaintEvent];
             glClearColor(fillColor.redF(), fillColor.greenF(), fillColor.blueF(), fillColor.alphaF());
             glClear(GL_COLOR_BUFFER_BIT);
         }
@@ -457,6 +418,8 @@ namespace TestWindowSpy
         return detail::instanceCount;
     }
 }
+
+using namespace TestWindowSpy;
 
 @interface TestNSWidnow : NSWindow
 {
@@ -927,7 +890,7 @@ void tst_QCocoaWindow::geometry_toplevel()
         qwindow->show();
         WAIT WAIT
 
-        // OS X may (and will) move the window away from uner/over the menu bar.
+        // OS X may (and will) move the window away from under/over the menu bar.
         // So we can't be 100% sure of the actual position here. Expected is (0, 45).
         NSWindow *nswindow = getNSWindow(qwindow);
         NSView *nsview = getNSView(qwindow);
@@ -1460,8 +1423,10 @@ void tst_QCocoaWindow::mouseEvents()
         events.append(new QNativeMouseButtonEvent(viewCenter, Qt::LeftButton, 0, Qt::NoModifier));
         events.play();
 
-        QTRY_COMPARE(window->mouseDownCount, 1);
-        QTRY_COMPARE(window->mouseUpCount, 1);
+        WAIT
+
+        QVERIFY(window->takeOneEvent(TestWindow::MouseDownEvent));
+        QVERIFY(window->takeOneEvent(TestWindow::MouseUpEvent));
 
         delete window;
     }
@@ -1482,8 +1447,10 @@ void tst_QCocoaWindow::keyboardEvents()
         events.append(new QNativeKeyEvent(QNativeKeyEvent::Key_A, false, Qt::NoModifier));
         events.play();
 
-        QTRY_COMPARE(window->keyDownCount, 1);
-        QTRY_COMPARE(window->keyUpCount, 1);
+        WAIT
+
+        QVERIFY(window->takeOneEvent(TestWindow::KeyDownEvent));
+        QVERIFY(window->takeOneEvent(TestWindow::KeyUpEvent));
 
         delete window;
     }
@@ -1540,8 +1507,8 @@ void tst_QCocoaWindow::eventForwarding()
             // Rejected mouse events go nowhere - if you click on a "blank" section
             // then excepted behavior is that nothing happens, not further event
             // propagation to the blocked view below.
-            QCOMPARE(qtwindow->mouseDownCount, 0);
-            QCOMPARE(qtwindow->mouseUpCount, 0);
+            QVERIFY(!qtwindow->takeOneEvent(TestWindow::MouseDownEvent));
+            QVERIFY(!qtwindow->takeOneEvent(TestWindow::MouseUpEvent));
             QCOMPARE(lower.mouseDownCount, 0);
             QCOMPARE(lower.mouseUpCount, 0);
         }
@@ -1555,8 +1522,8 @@ void tst_QCocoaWindow::eventForwarding()
                 WAIT
 
              // Keyboard events get propagated to the lower view
-            QCOMPARE(qtwindow->keyDownCount, 0);
-            QCOMPARE(qtwindow->keyUpCount, 0);
+            QVERIFY(!qtwindow->takeOneEvent(TestWindow::KeyDownEvent));
+            QVERIFY(!qtwindow->takeOneEvent(TestWindow::KeyUpEvent));
             QCOMPARE(lower.keyDownCount, 1);
             QCOMPARE(lower.keyUpCount, 1);
         }
@@ -1576,8 +1543,8 @@ void tst_QCocoaWindow::eventForwarding()
                 WAIT
 
             // Events go the lower view
-            QCOMPARE(qtwindow->mouseDownCount, 0);
-            QCOMPARE(qtwindow->mouseUpCount, 0);
+            QVERIFY(!qtwindow->takeOneEvent(TestWindow::MouseDownEvent));
+            QVERIFY(!qtwindow->takeOneEvent(TestWindow::MouseUpEvent));
             QCOMPARE(lower.mouseDownCount, 1);
             QCOMPARE(lower.mouseUpCount, 1);
         }
@@ -1591,8 +1558,8 @@ void tst_QCocoaWindow::eventForwarding()
 
                 WAIT
              // Keyboard events get propagated to the lower view
-            QCOMPARE(qtwindow->keyDownCount, 0);
-            QCOMPARE(qtwindow->keyUpCount, 0);
+            QVERIFY(!qtwindow->takeOneEvent(TestWindow::KeyDownEvent));
+            QVERIFY(!qtwindow->takeOneEvent(TestWindow::KeyUpEvent));;
             QCOMPARE(lower.keyDownCount, 2);
             QCOMPARE(lower.keyUpCount, 2);
         }
@@ -1612,8 +1579,8 @@ void tst_QCocoaWindow::eventForwarding()
                 WAIT WAIT WAIT
 
             // Events go the lower view
-            QCOMPARE(qtwindow->mouseDownCount, 0);
-            QCOMPARE(qtwindow->mouseUpCount, 0);
+            QVERIFY(!qtwindow->takeOneEvent(TestWindow::MouseDownEvent));
+            QVERIFY(!qtwindow->takeOneEvent(TestWindow::MouseUpEvent));
             QCOMPARE(lower.mouseDownCount, 2);
             QCOMPARE(lower.mouseUpCount, 2);
         }
@@ -1826,42 +1793,42 @@ void tst_QCocoaWindow::expose()
     LOOP {
         TestWindowSpy::TestWindowBase *window = TestWindowSpy::createTestWindow(windowconfiguration);
 
-        QVERIFY(!window->takeExposeEvent());
-        QVERIFY(!window->takeObscureEvent());
-        QVERIFY(!window->takePaintEvent());
+        QVERIFY(!window->takeOneEvent(TestWindow::ExposeEvent));
+        QVERIFY(!window->takeOneEvent(TestWindow::ObscureEvent));
+        QVERIFY(!window->takeOneEvent(TestWindow::PaintEvent));
 
         // Show the window, expect one expose and one paint event.
         window->qwindow->show();
         WAIT WAIT  WAIT WAIT
 
-        QVERIFY(window->takeExposeEvent());
-        QVERIFY(!window->takeObscureEvent());
-        QVERIFY(window->takePaintEvent());
+        QVERIFY(window->takeOneEvent(TestWindow::ExposeEvent));
+        QVERIFY(!window->takeOneEvent(TestWindow::ObscureEvent));
+        QVERIFY(window->takeOneEvent(TestWindow::PaintEvent));
 
         // Hide the window, expect one obscure evnet
         window->qwindow->hide();
         WAIT
-        QVERIFY(!window->takeExposeEvent());
-        QVERIFY(window->takeObscureEvent());
-        QVERIFY(!window->takePaintEvent());
+        QVERIFY(!window->takeOneEvent(TestWindow::ExposeEvent));
+        QVERIFY(window->takeOneEvent(TestWindow::ObscureEvent));
+        QVERIFY(!window->takeOneEvent(TestWindow::PaintEvent));
 
         // Request update on the hidden window: expect no expose or paint events.
         window->update(QRect(0, 0, 40, 40));
-        QVERIFY(!window->takeExposeEvent());
-        QVERIFY(!window->takePaintEvent());
+        QVERIFY(!window->takeOneEvent(TestWindow::ExposeEvent));
+        QVERIFY(!window->takeOneEvent(TestWindow::PaintEvent));
 
         // Show the window, expect one expose event
         window->qwindow->show();
         WAIT WAIT
-        QVERIFY(window->takeExposeEvent());
-        QVERIFY(!window->takeObscureEvent());
+        QVERIFY(window->takeOneEvent(TestWindow::ExposeEvent));
+        QVERIFY(!window->takeOneEvent(TestWindow::ObscureEvent));
 
         if (TestWindowSpy::isRasterWindow(TestWindowSpy::RasterClassic)) {
             // QRasterWindow may cache via QBackingStore, accept zero or one extra paint evnet
-            window->takePaintEvent();
+            QVERIFY(window->takeOneEvent(TestWindow::PaintEvent));
         } else {
             // Expect No caching for OpenGL. ### TODO: apparently not.
-            window->takePaintEvent();
+            QVERIFY(window->takeOneEvent(TestWindow::PaintEvent));
         }
 
         // Hide the window, expect +1 obscure event.
@@ -1870,7 +1837,7 @@ void tst_QCocoaWindow::expose()
         window->qwindow->close();
         WAIT WAIT
 
-        QVERIFY(window->takeObscureEvent());
+        QVERIFY(window->takeOneEvent(TestWindow::ObscureEvent));
 
         delete window;
     } // LOOP
@@ -1928,10 +1895,8 @@ void tst_QCocoaWindow::expose_resize()
             QRect geometry(100, 100, 150, 150);
             qwindow->setGeometry(geometry);
             WAIT
-            QVERIFY(twindow->takeExposeEvent());
-            QVERIFY(twindow->takePaintEvent());
-            QVERIFY(!twindow->takeExposeEvent());
-            QVERIFY(!twindow->takePaintEvent());
+            QVERIFY(twindow->takeOneEvent(TestWindow::ExposeEvent));
+            QVERIFY(twindow->takeOneEvent(TestWindow::PaintEvent));
         }
 
         // Resize using NSWindow API
@@ -1943,10 +1908,8 @@ void tst_QCocoaWindow::expose_resize()
             NSRect frame = nswindowFrameGeometry(geometry, nswindow);
             [nswindow setFrame:frame display:immediateDisplay animate:NO];
             WAIT
-            QVERIFY(twindow->takeExposeEvent());
-            QVERIFY(twindow->takePaintEvent());
-            QVERIFY(!twindow->takeExposeEvent());
-            QVERIFY(!twindow->takePaintEvent());
+            QVERIFY(twindow->takeOneEvent(TestWindow::ExposeEvent));
+            QVERIFY(twindow->takeOneEvent(TestWindow::PaintEvent));
         }
 
         // Resize using NSWindow API, with immediate display.
@@ -1958,10 +1921,8 @@ void tst_QCocoaWindow::expose_resize()
             NSRect frame = nswindowFrameGeometry(geometry, nswindow);
             [nswindow setFrame:frame display:immediateDisplay animate:NO];
             // WAIT not needed due to immediate display.
-            QVERIFY(twindow->takeExposeEvent());
-            QVERIFY(twindow->takePaintEvent());
-            QVERIFY(!twindow->takeExposeEvent());
-            QVERIFY(!twindow->takePaintEvent());
+            QVERIFY(twindow->takeOneEvent(TestWindow::ExposeEvent));
+            QVERIFY(twindow->takeOneEvent(TestWindow::PaintEvent));
         }
 
         // Resize using NSWindow API, with immediate display and animation
@@ -1974,11 +1935,12 @@ void tst_QCocoaWindow::expose_resize()
             NSRect frame = nswindowFrameGeometry(geometry, nswindow);
             [nswindow setFrame:frame display:immediateDisplay animate:animate];
             // WAIT not needed due to immediate display.
-            QVERIFY(twindow->takeExposeEvent());
-            QVERIFY(twindow->takePaintEvent());
-            // There may be more expose/paint events due to the animation,
-            // but this is outside Qt's control so this test is not going
-            // to require it.
+
+            // There may be many expose/paint events due to the animation,
+            // but the exact number is outside of Qt control, so this test
+            // accepts any number.
+            QVERIFY(twindow->takeOneOrManyEvents(TestWindow::ExposeEvent));
+            QVERIFY(twindow->takeOneOrManyEvents(TestWindow::PaintEvent));
         }
 
         delete qwindow;
@@ -2012,8 +1974,8 @@ void tst_QCocoaWindow::requestUpdate()
             twindow->resetCounters();
             qwindow->requestUpdate();
             WAIT
-            QVERIFY(twindow->takePaintEvent());
-            //QVERIFY(!twindow->takePaintEvent());
+            QVERIFY(twindow->takeOneOrManyEvents(TestWindow::PaintEvent));
+            // TODO: Be stricter and expect one paint event only?
         }
 
         delete qwindow;
@@ -2090,14 +2052,14 @@ void tst_QCocoaWindow::repaint()
 
     // Repaint should trigger one immediate paint event
     window->repaint();
-    QVERIFY(window->takePaintEvent());
-    QVERIFY(!window->takePaintEvent());
+    QVERIFY(window->takeOneEvent(TestWindow::PaintEvent));
+    QVERIFY(!window->takeOneEvent(TestWindow::PaintEvent));
 
     // For comparison, update does not paint until we spin the event loop
     window->update(geometry);
-    QVERIFY(!window->takePaintEvent());
+    QVERIFY(!window->takeOneEvent(TestWindow::PaintEvent));
     WAIT
-    QVERIFY(window->takePaintEvent());
+    QVERIFY(window->takeOneEvent(TestWindow::PaintEvent));
 
     // Verify that the updated contents are actually flushed to the window/display
     QRect testGeometry(QPoint(0, 0), windowSize);
@@ -2195,7 +2157,7 @@ void tst_QCocoaWindow::paint_coverage()
 
         // Verify that the pixels on screen match
         QRect imageGeometry(QPoint(0, 0), geometry.size());
-        QVERIFY(verifyImage( grabWindow(window->qwindow), imageGeometry, toQColor(FILLER_COLOR)));
+        QVERIFY(verifyImage(grabWindow(window->qwindow), imageGeometry, toQColor(FILLER_COLOR)));
 
         // Fill subrect with new color
         window->fillColor = toQColor(OK_COLOR);
@@ -2208,7 +2170,7 @@ void tst_QCocoaWindow::paint_coverage()
         QRect notUpdated(110, 110, 50, 50);
         QVERIFY(verifyImage(grabWindow(window->qwindow), notUpdated, toQColor(FILLER_COLOR)));
 
-#ifdef HAVE_TRANSFER_NATIVE_VIEW
+#ifdef HAVE_QPAINTDEVICEWINDOW_REPAINT
         // Call repaint() and verify that the window has been repainted on return.
         window->repaint();
         QVERIFY(verifyImage(grabWindow(window->qwindow), imageGeometry, toQColor(OK_COLOR)));
