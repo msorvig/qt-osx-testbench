@@ -193,234 +193,6 @@ int iterations = 1;
 #define FILLER_COLOR [NSColor colorWithDeviceRed:0.1 green:0.1 blue:0.6 alpha:1.0] // Blue: Filler
 #define ERROR_COLOR [NSColor colorWithDeviceRed:0.5 green:0.1 blue:0.1 alpha:1.0] // Red: Error
 
-
-// QWindow instance [and event] counting facilities
-namespace TestWindowSpy
-{
-    namespace detail {
-        static int instanceCount = 0;
-    }
-
-    // Creates a test window according to the given configuration. Returns a pointer
-    // to the TestWindowBase interface. Access the QWindow with qwindow:
-    //    TestWindowBase *ec = createTestWindow(...);
-    //    QWindow *window = ec->qwindow;
-    // Or cast(?)
-    class TestWindowBase;
-    TestWindowBase *createTestWindow(WindowConfiguration windowConfiguration);
-
-    // Base class for storing event counts.
-    class TestWindowBase
-    {
-    public:
-        QWindow *qwindow; // pointer-to-QWindow-self.
-        QColor fillColor;
-        
-        enum EventType
-        {
-            MouseDownEvent,
-            MouseUpEvent,
-            KeyDownEvent,
-            KeyUpEvent,
-            ExposeEvent,
-            ObscureEvent,
-            PaintEvent,
-            EventTypesCount
-        };
-        int eventCounts[EventTypesCount];
-
-        TestWindowBase()
-        {
-            resetCounters();
-            ++detail::instanceCount;
-        }
-
-        virtual ~TestWindowBase()
-        {
-            --detail::instanceCount;
-        }
-
-        void resetCounters()
-        {
-            for (int i = 0; i < EventTypesCount; ++i)
-                eventCounts[i] = 0;
-        }
-        
-        // "Take" functions for checking if there are zero, or one
-        // (exactly), or many events of a particular event type
-        // pending. These have the side effect of decrementing
-        // the event counter.
-        bool takeOneEvent(EventType type)
-        {
-            if (eventCounts[type] != 1)
-                return false;
-            --eventCounts[type];
-            return true;
-        }
-
-        bool takeOneOrManyEvents(EventType type)
-        {
-            if (eventCounts[type] < 1)
-                return false;
-            eventCounts[type] = 0;
-            return true;
-        }
-
-        virtual void update(QRect rect)
-        {
-            // Will be overridden by subclass
-        }
-
-        virtual void repaint()
-        {
-            // Will be overridden by subclass
-        }
-    };
-
-    // We want to have test windows with a common event counting API,
-    // inhereting QRasterWindow or QOPenGLWindow. Solve by this slightly
-    // evil templated multiple inheritance usage.
-    template <typename WindowSubclass>
-    class TestWindowTempl : public WindowSubclass, public virtual TestWindowBase
-    {
-    public:
-
-        // Controls whether events are accepted
-        bool forwardEvents;
-
-        TestWindowTempl() {
-            WindowSubclass::setGeometry(100, 100, 100, 100);
-
-            forwardEvents = false;
-            fillColor = QColor(Qt::green);
-
-            qwindow = this;
-        }
-
-        void keyPressEvent(QKeyEvent * ev) {
-            ev->setAccepted(!forwardEvents);
-            eventCounts[KeyDownEvent] += forwardEvents ? 0 : 1;
-        }
-
-        void keyReleaseEvent(QKeyEvent * ev) {
-            ev->setAccepted(!forwardEvents);
-            eventCounts[KeyUpEvent] += forwardEvents ? 0 : 1;
-        }
-
-        void mousePressEvent(QMouseEvent * ev) {
-            ev->setAccepted(!forwardEvents);
-            eventCounts[MouseDownEvent] += forwardEvents ? 0 : 1;
-        }
-
-        void mouseReleaseEvent(QMouseEvent * ev) {
-            ev->setAccepted(!forwardEvents);
-            eventCounts[MouseUpEvent] += forwardEvents ? 0 : 1;
-        }
-
-        void exposeEvent(QExposeEvent *event) {
-            if (event->region().isEmpty())
-                ++eventCounts[ObscureEvent];
-            else
-                ++eventCounts[ExposeEvent];
-
-            // Call base impl which will call paintEvent()
-            WindowSubclass::exposeEvent(event);
-        }
-    };
-
-    // Raster test window implementation
-    class TestRasterImpl : public QRasterWindow, public virtual TestWindowBase
-    {
-    public:
-        TestRasterImpl()
-        {
-
-        }
-
-        void update(QRect rect)
-        {
-            QRasterWindow::update(rect);
-        }
-
-        virtual void repaint()
-        {
-#ifdef HAVE_QPAINTDEVICEWINDOW_REPAINT
-            QRasterWindow::repaint();
-#else
-            qWarning("No QPaintDeviceWindow::repaint(), expect test failures");
-#endif
-        }
-
-        void paintEvent(QPaintEvent *ev) {
-            ++TestWindowBase::eventCounts[PaintEvent];
-            
-            qDebug() << "paint" << ev->region().boundingRect();
-
-            // Fill the dirty rects with the current fill color.
-            QPainter p(this);
-            foreach (QRect rect, ev->region().rects()) {
-                p.fillRect(rect, fillColor);
-            }
-        }
-    };
-
-    // OpenGL test window implementation
-    class TestOpenGLImpl : public QOpenGLWindow, public virtual TestWindowBase
-    {
-    public:
-        TestOpenGLImpl()
-            :TestWindowBase(), QOpenGLWindow(QOpenGLWindow::NoPartialUpdate)
-        {}
-
-        void paintGL()
-        {
-            ++TestWindowBase::eventCounts[PaintEvent];
-            glClearColor(fillColor.redF(), fillColor.greenF(), fillColor.blueF(), fillColor.alphaF());
-            glClear(GL_COLOR_BUFFER_BIT);
-        }
-    };
-
-    // Assemble window components:
-    typedef TestWindowTempl<TestRasterImpl> TestWindow; // Legacy name
-    typedef TestWindowTempl<TestRasterImpl> RasterTestWindow;
-    typedef TestWindowTempl<TestOpenGLImpl> OpenGLTestWindow;
-
-    bool isRasterWindow(WindowConfiguration windowConfiguration) {
-        return windowConfiguration == RasterClassic || windowConfiguration == RasterLayer;
-    }
-    bool isLayeredWindow(WindowConfiguration windowConfiguration) {
-        return windowConfiguration == RasterLayer || windowConfiguration == OpenGLLayer;
-    }
-
-
-    TestWindowBase *createTestWindow(WindowConfiguration windowConfiguration)
-    {
-        TestWindowBase *window;
-
-        // Select Raster/OpenGL
-        if (isRasterWindow(windowConfiguration))
-            window = new RasterTestWindow();
-        else
-            window = new OpenGLTestWindow();
-
-        // Select Layer-backed/Classic
-        if (isLayeredWindow(windowConfiguration))
-            window->qwindow->setProperty("_q_mac_wantsLayer", QVariant(true));
-
-        return window;
-    }
-
-    void reset() {
-        detail::instanceCount = 0;
-    }
-
-    int windowCount() {
-        return detail::instanceCount;
-    }
-}
-
-using namespace TestWindowSpy;
-
 @interface TestNSWidnow : NSWindow
 {
 
@@ -579,13 +351,13 @@ class TestViewInterface
 {
 public:
     TestViewInterface(TestNSView *nsView);
-    TestViewInterface(TestWindowSpy::TestWindow *qtWindow);
+    TestViewInterface(TestWindow *qtWindow);
 
     TestNSView *ns() {
 
     }
 
-    TestWindowSpy::TestWindow *qt() {
+    TestWindow *qt() {
 
     }
 
@@ -602,7 +374,7 @@ public:
     int paintEventCount() {}
 private:
     TestNSView m_cocoaView;
-    TestWindowSpy::TestWindow *m_qtWindow;
+    TestWindow *m_qtWindow;
 };
 #endif
 
@@ -705,15 +477,15 @@ void tst_QCocoaWindow::construction()
     LOOP {
 
         QCocoaSpy::reset(@"QNSWindow", @"QNSView");
-        TestWindowSpy::reset();
+        TestWindow::resetWindowCounter();
 
         @autoreleasepool {
             // The Cocoa platform plugin implements a backend for the QWindow
             // class. Here we use a TestWindow subclass which tracks instances
             // and events.
-            QWindow *window = new TestWindowSpy::TestWindow();
+            TestWindow *window = TestWindow::createWindow();
             window->setGeometry(100, 100, 100, 100);
-            QCOMPARE(TestWindowSpy::windowCount(), 1);
+            QCOMPARE(TestWindow::windowCount(), 1);
 
             // The actual implementation is a QPlatformWindow subclass: QCocoaWidnow.
             // Each QWindow has a corresponding QPlatformWindow instance, which is
@@ -745,7 +517,7 @@ void tst_QCocoaWindow::construction()
             WAIT
         }
 
-        QCOMPARE(TestWindowSpy::windowCount(), 0);
+        QCOMPARE(TestWindow::windowCount(), 0);
         // QCOMPARE(QCocoaSpy::visbileWindows, 0);
         QCOMPARE(QCocoaSpy::windowCount(), 0);
         QCOMPARE(QCocoaSpy::viewCount(), 0);
@@ -754,15 +526,15 @@ void tst_QCocoaWindow::construction()
     // Repeat test, now with window->raise() call
     LOOP {
         QCocoaSpy::reset(@"QNSWindow", @"QNSView");
-        TestWindowSpy::reset();
+        TestWindow::resetWindowCounter();
 
         @autoreleasepool {
             // The Cocoa platform plugin implements a backend for the QWindow
             // class. Here we use a TestWindow subclass which tracks instances
             // and events.
-            QWindow *window = new TestWindowSpy::TestWindow();
+            TestWindow *window = TestWindow::createWindow();
             window->setGeometry(100, 100, 100, 100);
-            QCOMPARE(TestWindowSpy::windowCount(), 1);
+            QCOMPARE(TestWindow::windowCount(), 1);
 
             // The actual implementation is a QPlatformWindow subclass: QCocoaWidnow.
             // Each QWindow has a corresponding QPlatformWindow instance, which is
@@ -796,7 +568,7 @@ void tst_QCocoaWindow::construction()
             WAIT
         }
 
-        QCOMPARE(TestWindowSpy::windowCount(), 0);
+        QCOMPARE(TestWindow::windowCount(), 0);
         // QCOMPARE(QCocoaSpy::visbileWindows, 0);
         QCOMPARE(QCocoaSpy::windowCount(), 0);
         QCOMPARE(QCocoaSpy::viewCount(), 0);
@@ -812,47 +584,49 @@ void tst_QCocoaWindow::embed()
     // its NSView.
     LOOP {
         QCocoaSpy::reset(@"QNSWindow", @"QNSView");
-        TestWindowSpy::reset();
+        TestWindow::resetWindowCounter();
 
-        QPointer<QWindow> window = new TestWindowSpy::TestWindow();
+        TestWindow *testWindow = TestWindow::createWindow();
+        QPointer<QWindow> qwindow = testWindow->takeQWindow();
+        delete testWindow;
         @autoreleasepool {
             // It is possible to extract the native view for a QWindow and embed
             // that view somewhere in a native NSWidnow/NSView hiearchy. This si
             // done after creating the window instance, before and instead of
             // showing it via the standard QWindow API.
-            NSView *view = QCocoaWindowFunctions::transferNativeView(window);
+            NSView *view = QCocoaWindowFunctions::transferNativeView(qwindow);
             QVERIFY(view != 0);
 
             // Extracting the native view transfers ownership of the QWindow instance
             // to the NSView instance. This creates a QCococaWindow instance and a
             // native NSView, but does not create a QNSWindow.
-            QCOMPARE(TestWindowSpy::windowCount(), 1);
+            QCOMPARE(TestWindow::windowCount(), 1);
             QCOMPARE(QCocoaSpy::viewCount(), 1);
             QCOMPARE(QCocoaSpy::windowCount(), 0);
 
             // Releasing the NSView deletes the QWindow.
             [view release];
+            QVERIFY(qwindow.isNull());
         }
 
         // Verify that all instances were deleted.
         QCOMPARE(QCocoaSpy::viewCount(), 0);
-        QCOMPARE(TestWindowSpy::windowCount(), 0);
-        QVERIFY(window.isNull());
+        QCOMPARE(TestWindow::windowCount(), 0);
     }
 
     // Test instance lifetimes when using the NSView for a QWindow as a
     // NSWindow content view.
     LOOP {
         QCocoaSpy::reset(@"QNSWindow", @"QNSView");
-        TestWindowSpy::reset();
+        TestWindow::resetWindowCounter();
 
-        QPointer<QWindow> qtwindow = new TestWindowSpy::TestWindow();
+        QPointer<QWindow> qwindow = TestWindow::createWindow()->takeQWindow();
         @autoreleasepool {
             QCOMPARE(QCocoaSpy::viewCount(), 0);
             QCOMPARE(QCocoaSpy::windowCount(), 0);
 
             NSWindow *window = [[TestNSWidnow alloc] init];
-            NSView *view = QCocoaWindowFunctions::transferNativeView(qtwindow);
+            NSView *view = QCocoaWindowFunctions::transferNativeView(qwindow);
             window.contentView = view;
             [view release];
 
@@ -861,7 +635,7 @@ void tst_QCocoaWindow::embed()
             }
             WAIT
 
-            QCOMPARE(TestWindowSpy::windowCount(), 1);
+            QCOMPARE(TestWindow::windowCount(), 1);
             QCOMPARE(QCocoaSpy::viewCount(), 1);
             QCOMPARE(QCocoaSpy::windowCount(), 0);
 
@@ -874,8 +648,8 @@ void tst_QCocoaWindow::embed()
             WAIT WAIT
         }
         QCOMPARE(QCocoaSpy::viewCount(), 0);
-        QCOMPARE(TestWindowSpy::windowCount(), 0);
-        QVERIFY(qtwindow.isNull());
+        QCOMPARE(TestWindow::windowCount(), 0);
+        QVERIFY(qwindow.isNull());
     }
 }
 
@@ -883,118 +657,110 @@ void tst_QCocoaWindow::geometry_toplevel()
 {
     // Test default QWindow geometry
     LOOP {
-        TestWindowSpy::TestWindowBase *twindow = TestWindowSpy::createTestWindow(TestWindowSpy::RasterClassic);
-        QWindow *qwindow = twindow->qwindow;
+        TestWindow *window = TestWindow::createWindow();
 
-        qwindow->setGeometry(QRect()); // undo TestWindow default geometry
-        qwindow->show();
+        window->setGeometry(QRect()); // undo TestWindow default geometry
+        window->show();
         WAIT WAIT
 
         // OS X may (and will) move the window away from under/over the menu bar.
         // So we can't be 100% sure of the actual position here. Expected is (0, 45).
-        NSWindow *nswindow = getNSWindow(qwindow);
-        NSView *nsview = getNSView(qwindow);
-        QCOMPARE(screenGeometry(qwindow), screenGeometry(nswindow));
-        QCOMPARE(screenGeometry(qwindow), screenGeometry(nsview));
+        NSWindow *nswindow = getNSWindow(window);
+        NSView *nsview = getNSView(window);
+        QCOMPARE(screenGeometry(window), screenGeometry(nswindow));
+        QCOMPARE(screenGeometry(window), screenGeometry(nsview));
 
-        delete qwindow;
+        delete window;
         WAIT WAIT
       }
 
     // Test specifying geometry
     LOOP {
-        TestWindowSpy::TestWindowBase *twindow = TestWindowSpy::createTestWindow(TestWindowSpy::RasterClassic);
-        QWindow *qwindow = twindow->qwindow;
+        TestWindow *window = TestWindow::createWindow();
 
         QRect geometry(101, 102, 103, 104);
-        qwindow->setGeometry(geometry);
-        qwindow->show();
+        window->setGeometry(geometry);
+        window->show();
         WAIT WAIT
 
-        NSWindow *nswindow = getNSWindow(qwindow);
-        NSView *nsview = getNSView(qwindow);
-        QCOMPARE(screenGeometry(qwindow), geometry);
+        NSWindow *nswindow = getNSWindow(window);
+        NSView *nsview = getNSView(window);
+        QCOMPARE(screenGeometry(window), geometry);
         QCOMPARE(screenGeometry(nswindow), geometry);
         QCOMPARE(screenGeometry(nsview), geometry);
 
-        delete qwindow;
+        delete window;
         WAIT WAIT
     }
 
     // Test changing geometry after create
     LOOP {
-        TestWindowSpy::TestWindowBase *twindow = TestWindowSpy::createTestWindow(TestWindowSpy::RasterClassic);
-        QWindow *qwindow = twindow->qwindow;
+        TestWindow *window = TestWindow::createWindow();
 
         QRect decoy(201, 202, 203, 204);
-        qwindow->setGeometry(decoy);
-        qwindow->create();
+        window->setGeometry(decoy);
+        window->create();
         QRect geometry(101, 102, 103, 104);
-        qwindow->setGeometry(geometry);
-        qwindow->show();
+        window->setGeometry(geometry);
+        window->show();
         WAIT WAIT
 
-        NSWindow *nswindow = getNSWindow(qwindow);
-        NSView *nsview = getNSView(qwindow);
-        QCOMPARE(screenGeometry(qwindow), geometry);
+        NSWindow *nswindow = getNSWindow(window);
+        NSView *nsview = getNSView(window);
+        QCOMPARE(screenGeometry(window), geometry);
         QCOMPARE(screenGeometry(nswindow), geometry);
         QCOMPARE(screenGeometry(nsview), geometry);
 
-        delete qwindow;
+        delete window;
         WAIT WAIT
     }
 
     // Test changing geometry after show
     LOOP {
-        TestWindowSpy::TestWindowBase *twindow = TestWindowSpy::createTestWindow(TestWindowSpy::RasterClassic);
-        QWindow *qwindow = twindow->qwindow;
+        TestWindow *window = TestWindow::createWindow();
 
         QRect decoy(201, 202, 203, 204);
-        qwindow->setGeometry(decoy);
-        qwindow->create();
-        qwindow->show();
-//        VISIBILITY_WAIT(qwindow);
+        window->setGeometry(decoy);
+        window->create();
+        window->show();
+//        VISIBILITY_WAIT(window);
         WAIT
 
         QRect geometry(101, 102, 103, 104);
-//        GEOMETRY_WAIT(qwindow, qwindow->setGeometry(geometry))
-        qwindow->setGeometry(geometry);
+//        GEOMETRY_WAIT(window, window->setGeometry(geometry))
+        window->setGeometry(geometry);
         WAIT
 
-        NSWindow *nswindow = getNSWindow(qwindow);
-        NSView *nsview = getNSView(qwindow);
-        QCOMPARE(screenGeometry(qwindow), geometry);
+        NSWindow *nswindow = getNSWindow(window);
+        NSView *nsview = getNSView(window);
+        QCOMPARE(screenGeometry(window), geometry);
         QCOMPARE(screenGeometry(nswindow), geometry);
         QCOMPARE(screenGeometry(nsview), geometry);
 
-        delete qwindow;
+        delete window;
         WAIT WAIT
     }
 
     // Test changing geometry after show using NSWindow
     LOOP {
-        TestWindowSpy::TestWindowBase *twindow = TestWindowSpy::createTestWindow(TestWindowSpy::RasterClassic);
-        QWindow *qwindow = twindow->qwindow;
+        TestWindow *window = TestWindow::createWindow();
 
         QRect geometry1(101, 102, 103, 104);
-        qwindow->setGeometry(geometry1);
-        qwindow->show();
-        WAIT WAIT
+        window->setGeometry(geometry1);
+        window->show();
+        WAIT
 
         // Set geometry unsing NSWindow.
-        NSWindow *nswindow = getNSWindow(qwindow);
+        NSWindow *nswindow = getNSWindow(window);
         QRect geometry2(111, 112, 113, 114);
         NSRect frame = nswindowFrameGeometry(geometry2, nswindow);
         [nswindow setFrame:frame display:YES animate:NO];
         WAIT WAIT
 
-        NSView *nsview = getNSView(qwindow);
-        QCOMPARE(screenGeometry(qwindow), geometry2);
+        NSView *nsview = getNSView(window);
+        QCOMPARE(screenGeometry(window), geometry2);
         QCOMPARE(screenGeometry(nswindow), geometry2);
         QCOMPARE(screenGeometry(nsview), geometry2);
-
-        delete qwindow;
-        WAIT WAIT
     }
 
     // Possible further testing
@@ -1017,7 +783,7 @@ void tst_QCocoaWindow::geometry_toplevel_embed()
 //        NSView *testView = [[TestNSView alloc] init];
 
         // Embed the QNSView as contentView for a NSWindow
-        QWindow *qwindow = new TestWindowSpy::TestWindow();
+        QWindow *qwindow = TestWindow::createWindow()->takeQWindow();
         NSView *view = QCocoaWindowFunctions::transferNativeView(qwindow);
         window.contentView = view;
         [view release];
@@ -1026,7 +792,7 @@ void tst_QCocoaWindow::geometry_toplevel_embed()
 
         // Expect that the view covers the window content area.
         QCOMPARE(screenGeometry(view), screenGeometry(window));
-        QCOMPARE(screenGeometry(view), screenGeometry(qwindow));
+        QCOMPARE(screenGeometry(view), screenGeometry(window));
 
         // Give the NSWindow new geometry, verify that the view and Qt is updated.
         QRect newGeometry(111, 112, 113, 114);
@@ -1036,7 +802,7 @@ void tst_QCocoaWindow::geometry_toplevel_embed()
 
         QCOMPARE(screenGeometry(window), newGeometry);
         QCOMPARE(screenGeometry(view), newGeometry);
-        QCOMPARE(screenGeometry(qwindow), newGeometry);
+        QCOMPARE(screenGeometry(window), newGeometry);
 
         [window release];
         WAIT
@@ -1051,9 +817,8 @@ void tst_QCocoaWindow::geometry_child()
     // test adding child to already visible parent
     LOOP {
         // Parent
-        TestWindowSpy::TestWindowBase *tparent = TestWindowSpy::createTestWindow(TestWindowSpy::RasterClassic);
-        tparent->fillColor = toQColor(FILLER_COLOR);
-        QWindow *parent = tparent->qwindow;
+        TestWindow *parent = TestWindow::createWindow();
+        parent->setFillColor(toQColor(FILLER_COLOR));
         QRect parentGeometry(101, 102, 103, 104);
         parent->setGeometry(parentGeometry);
         parent->show();
@@ -1067,9 +832,8 @@ void tst_QCocoaWindow::geometry_child()
         QSize childSize(31, 32);
         QPoint expectedChildScreenPosition = parentScreenGeometry.topLeft() + childOffset;
 
-        TestWindowSpy::TestWindowBase *tchild = TestWindowSpy::createTestWindow(TestWindowSpy::RasterClassic);
-        tchild->fillColor = toQColor(OK_COLOR);
-        QWindow *child = tchild->qwindow;
+        TestWindow *child = TestWindow::createWindow(TestWindow::RasterClassic);
+        child->setFillColor(toQColor(OK_COLOR));
         child->setParent(parent);
         QRect childGeometry(childOffset, childSize);
         child->setGeometry(childGeometry);
@@ -1184,8 +948,7 @@ void tst_QCocoaWindow::visibility_setVisible()
 {
      WINDOW_CONFIGS  {
      LOOP {
-         TestWindowSpy::TestWindowBase *w = TestWindowSpy::createTestWindow(WINDOW_CONFIG);
-         QWindow *window = w->qwindow;
+         TestWindow *window = TestWindow::createWindow(WINDOW_CONFIG);
 
          window->setVisible(true);
          NSWindow *nativeWindow = getNSWindow(window);
@@ -1206,8 +969,7 @@ void tst_QCocoaWindow::visibility_setVisible()
 
      WINDOW_CONFIGS  {
      LOOP {
-         TestWindowSpy::TestWindowBase *w = TestWindowSpy::createTestWindow(WINDOW_CONFIG);
-         QWindow *window = w->qwindow;
+         TestWindow *window = TestWindow::createWindow(WINDOW_CONFIG);
 
          window->create();
          NSWindow *nativeWindow = getNSWindow(window);
@@ -1240,8 +1002,7 @@ void tst_QCocoaWindow::visibility_created_setGeometry()
 {
     WINDOW_CONFIGS  {
     LOOP {
-        TestWindowSpy::TestWindowBase *w = TestWindowSpy::createTestWindow(WINDOW_CONFIG);
-        QWindow *window = w->qwindow;
+        TestWindow *window = TestWindow::createWindow(WINDOW_CONFIG);
         window->create();
         window->setGeometry(40, 50, 20, 30);
         WAIT
@@ -1265,8 +1026,7 @@ void tst_QCocoaWindow::visibility_created_propagateSizeHints()
 {
     WINDOW_CONFIGS  {
     LOOP {
-        TestWindowSpy::TestWindowBase *w = TestWindowSpy::createTestWindow(WINDOW_CONFIG);
-        QWindow *window = w->qwindow;
+        TestWindow *window = TestWindow::createWindow(WINDOW_CONFIG);
         window->create();
 
         // Set min/max size, which should call propagateSizeHints on the
@@ -1296,8 +1056,7 @@ void tst_QCocoaWindow::visibility_created_drawrect()
     // Qt controls the visiblity.
     WINDOW_CONFIGS  {
     LOOP {
-        TestWindowSpy::TestWindowBase *w = TestWindowSpy::createTestWindow(WINDOW_CONFIG);
-        QWindow *window = w->qwindow;
+        TestWindow *window = TestWindow::createWindow(WINDOW_CONFIG);
         window->create();
 
         NSWindow *nativeWindow = getNSWindow(window);
@@ -1411,7 +1170,7 @@ void tst_QCocoaWindow::nativeEventForwarding()
 void tst_QCocoaWindow::mouseEvents()
 {
     LOOP {
-        TestWindowSpy::TestWindow *window = new TestWindowSpy::TestWindow();
+        TestWindow *window = TestWindow::createWindow();
         window->setGeometry(100, 100, 100, 100);
         window->show();
 
@@ -1436,7 +1195,7 @@ void tst_QCocoaWindow::mouseEvents()
 void tst_QCocoaWindow::keyboardEvents()
 {
     LOOP {
-        TestWindowSpy::TestWindow *window = new TestWindowSpy::TestWindow();
+        TestWindow *window = TestWindow::createWindow();
         window->setGeometry(100, 100, 100, 100);
         window->show();
 
@@ -1484,9 +1243,9 @@ void tst_QCocoaWindow::eventForwarding()
         window.contentView = lower;
         [lower release];
 
-        TestWindowSpy::TestWindow *qtwindow = new TestWindowSpy::TestWindow();
-        qtwindow->forwardEvents = true;
-        NSView *upper = QCocoaWindowFunctions::transferNativeView(qtwindow);
+        TestWindow *qtwindow = TestWindow::createWindow();
+        qtwindow->setForwardEvents(true);
+        NSView *upper = QCocoaWindowFunctions::transferNativeView(qtwindow->qwindow());
         upper.frame = NSMakeRect(0, 0, 100, 100);
         [lower addSubview:upper];
         [upper release];
@@ -1530,7 +1289,7 @@ void tst_QCocoaWindow::eventForwarding()
 
         // Test Qt::WindowTransparentForInput windows
         qtwindow->setFlags(qtwindow->flags() | Qt::WindowTransparentForInput);
-        qtwindow->forwardEvents = false;
+        qtwindow->setForwardEvents(false);
 
         {
             // Mouse events
@@ -1779,26 +1538,26 @@ void tst_QCocoaWindow::child_drawing_native()
 
 void tst_QCocoaWindow::expose_data()
 {
-    QTest::addColumn<TestWindowSpy::WindowConfiguration>("windowconfiguration");
+    QTest::addColumn<TestWindow::WindowConfiguration>("windowconfiguration");
     WINDOW_CONFIGS {
-        QTest::newRow(windowConfigurationName(WINDOW_CONFIG).constData()) << WINDOW_CONFIG;
+        QTest::newRow(TestWindow::windowConfigurationName(WINDOW_CONFIG).constData()) << WINDOW_CONFIG;
     }
 }
 
 // Test that a window gets expose (and paint) events on show, and obscure events on hide
 void tst_QCocoaWindow::expose()
 {
-    QFETCH(TestWindowSpy::WindowConfiguration, windowconfiguration);
+    QFETCH(TestWindow::WindowConfiguration, windowconfiguration);
     {
     LOOP {
-        TestWindowSpy::TestWindowBase *window = TestWindowSpy::createTestWindow(windowconfiguration);
+        TestWindow *window = TestWindow::createWindow(windowconfiguration);
 
         QVERIFY(!window->takeOneEvent(TestWindow::ExposeEvent));
         QVERIFY(!window->takeOneEvent(TestWindow::ObscureEvent));
         QVERIFY(!window->takeOneEvent(TestWindow::PaintEvent));
 
         // Show the window, expect one expose and one paint event.
-        window->qwindow->show();
+        window->show();
         WAIT WAIT  WAIT WAIT
 
         QVERIFY(window->takeOneEvent(TestWindow::ExposeEvent));
@@ -1806,7 +1565,7 @@ void tst_QCocoaWindow::expose()
         QVERIFY(window->takeOneEvent(TestWindow::PaintEvent));
 
         // Hide the window, expect one obscure evnet
-        window->qwindow->hide();
+        window->hide();
         WAIT
         QVERIFY(!window->takeOneEvent(TestWindow::ExposeEvent));
         QVERIFY(window->takeOneEvent(TestWindow::ObscureEvent));
@@ -1818,12 +1577,12 @@ void tst_QCocoaWindow::expose()
         QVERIFY(!window->takeOneEvent(TestWindow::PaintEvent));
 
         // Show the window, expect one expose event
-        window->qwindow->show();
+        window->show();
         WAIT WAIT
         QVERIFY(window->takeOneEvent(TestWindow::ExposeEvent));
         QVERIFY(!window->takeOneEvent(TestWindow::ObscureEvent));
 
-        if (TestWindowSpy::isRasterWindow(TestWindowSpy::RasterClassic)) {
+        if (TestWindow::isRasterWindow(windowconfiguration)) {
             // QRasterWindow may cache via QBackingStore, accept zero or one extra paint evnet
             QVERIFY(window->takeOneEvent(TestWindow::PaintEvent));
         } else {
@@ -1832,9 +1591,9 @@ void tst_QCocoaWindow::expose()
         }
 
         // Hide the window, expect +1 obscure event.
-        window->qwindow->hide();
+        window->hide();
         WAIT WAIT // ### close eats the obscure event.
-        window->qwindow->close();
+        window->close();
         WAIT WAIT
 
         QVERIFY(window->takeOneEvent(TestWindow::ObscureEvent));
@@ -1847,15 +1606,15 @@ void tst_QCocoaWindow::expose()
 void tst_QCocoaWindow::expose_stacked()
 {
     WINDOW_CONFIGS  { LOOP {
-        TestWindowSpy::TestWindowBase *lower = TestWindowSpy::createTestWindow(WINDOW_CONFIG);
-        lower->fillColor = toQColor(ERROR_COLOR);
-        TestWindowSpy::TestWindowBase *upper = TestWindowSpy::createTestWindow(WINDOW_CONFIG);
-        upper->fillColor = toQColor(OK_COLOR);
+        TestWindow *lower = TestWindow::createWindow(WINDOW_CONFIG);
+        lower->setFillColor(toQColor(ERROR_COLOR));
+        TestWindow *upper = TestWindow::createWindow(WINDOW_CONFIG);
+        upper->setFillColor(toQColor(OK_COLOR));
 
-        upper->qwindow->setParent(lower->qwindow);
-        upper->qwindow->setGeometry(0, 0, 100, 100);
-        upper->qwindow->show();
-        lower->qwindow->show();
+        upper->setParent(lower);
+        upper->setGeometry(0, 0, 100, 100);
+        upper->show();
+        lower->show();
 
 
         WAIT WAIT         WAIT WAIT         WAIT WAIT
@@ -1869,116 +1628,110 @@ void tst_QCocoaWindow::expose_stacked()
 
 void tst_QCocoaWindow::expose_resize_data()
 {
-    QTest::addColumn<TestWindowSpy::WindowConfiguration>("windowconfiguration");
+    QTest::addColumn<TestWindow::WindowConfiguration>("windowconfiguration");
     WINDOW_CONFIGS {
-        QTest::newRow(windowConfigurationName(WINDOW_CONFIG).constData()) << WINDOW_CONFIG;
+        QTest::newRow(TestWindow::windowConfigurationName(WINDOW_CONFIG).constData()) << WINDOW_CONFIG;
     }
 }
 
 // Verify that there is one expose + paint event on window resize.
 void tst_QCocoaWindow::expose_resize()
 {
-    QFETCH(TestWindowSpy::WindowConfiguration, windowconfiguration);
+    QFETCH(TestWindow::WindowConfiguration, windowconfiguration);
 
      LOOP {
         // Create test window with initial geometry
-        TestWindowSpy::TestWindowBase *twindow = TestWindowSpy::createTestWindow(windowconfiguration);
-        QWindow *qwindow = twindow->qwindow;
+        TestWindow *window = TestWindow::createWindow(windowconfiguration);
         QRect geometry(100, 100, 100, 100);
-        qwindow->setGeometry(geometry);
-        qwindow->show();
+        window->setGeometry(geometry);
+        window->show();
         WAIT WAIT WAIT // wait-for-painted
 
         // Resize using QWindow API
         {
-            twindow->resetCounters();
+            window->resetCounters();
             QRect geometry(100, 100, 150, 150);
-            qwindow->setGeometry(geometry);
+            window->setGeometry(geometry);
             WAIT
-            QVERIFY(twindow->takeOneEvent(TestWindow::ExposeEvent));
-            QVERIFY(twindow->takeOneEvent(TestWindow::PaintEvent));
+            QVERIFY(window->takeOneEvent(TestWindow::ExposeEvent));
+            QVERIFY(window->takeOneEvent(TestWindow::PaintEvent));
         }
 
         // Resize using NSWindow API
         {
-            bool immediateDisplay = NO;
-            twindow->resetCounters();
-            NSWindow *nswindow = getNSWindow(qwindow);
+            window->resetCounters();
+            NSWindow *nswindow = getNSWindow(window);
             QRect geometry(100, 100, 200, 200);
             NSRect frame = nswindowFrameGeometry(geometry, nswindow);
-            [nswindow setFrame:frame display:immediateDisplay animate:NO];
+            [nswindow setFrame:frame display:NO animate:NO];
             WAIT
-            QVERIFY(twindow->takeOneEvent(TestWindow::ExposeEvent));
-            QVERIFY(twindow->takeOneEvent(TestWindow::PaintEvent));
+            QVERIFY(window->takeOneEvent(TestWindow::ExposeEvent));
+            QVERIFY(window->takeOneEvent(TestWindow::PaintEvent));
         }
 
         // Resize using NSWindow API, with immediate display.
         {
-            bool immediateDisplay = YES;
-            twindow->resetCounters();
-            NSWindow *nswindow = getNSWindow(qwindow);
+            window->resetCounters();
+            NSWindow *nswindow = getNSWindow(window);
             QRect geometry(100, 100, 250, 250);
             NSRect frame = nswindowFrameGeometry(geometry, nswindow);
-            [nswindow setFrame:frame display:immediateDisplay animate:NO];
+            [nswindow setFrame:frame display:YES animate:NO];
             // WAIT not needed due to immediate display.
-            QVERIFY(twindow->takeOneEvent(TestWindow::ExposeEvent));
-            QVERIFY(twindow->takeOneEvent(TestWindow::PaintEvent));
+            QVERIFY(window->takeOneEvent(TestWindow::ExposeEvent));
+            QVERIFY(window->takeOneEvent(TestWindow::PaintEvent));
         }
 
         // Resize using NSWindow API, with immediate display and animation
         {
-            bool immediateDisplay = YES;
-            bool animate = YES;
-            twindow->resetCounters();
-            NSWindow *nswindow = getNSWindow(qwindow);
+            window->resetCounters();
+            NSWindow *nswindow = getNSWindow(window);
             QRect geometry(100, 100, 200, 200);
             NSRect frame = nswindowFrameGeometry(geometry, nswindow);
-            [nswindow setFrame:frame display:immediateDisplay animate:animate];
+            [nswindow setFrame:frame display:YES animate:YES];
             // WAIT not needed due to immediate display.
 
             // There may be many expose/paint events due to the animation,
             // but the exact number is outside of Qt control, so this test
             // accepts any number.
-            QVERIFY(twindow->takeOneOrManyEvents(TestWindow::ExposeEvent));
-            QVERIFY(twindow->takeOneOrManyEvents(TestWindow::PaintEvent));
+            QVERIFY(window->takeOneOrManyEvents(TestWindow::ExposeEvent));
+            QVERIFY(window->takeOneOrManyEvents(TestWindow::PaintEvent));
         }
 
-        delete qwindow;
+        delete window;
         WAIT
     }
 }
 
 void tst_QCocoaWindow::requestUpdate_data()
 {
-    QTest::addColumn<TestWindowSpy::WindowConfiguration>("windowconfiguration");
+    QTest::addColumn<TestWindow::WindowConfiguration>("windowconfiguration");
     WINDOW_CONFIGS {
-        QTest::newRow(windowConfigurationName(WINDOW_CONFIG).constData()) << WINDOW_CONFIG;
+        QTest::newRow(TestWindow::windowConfigurationName(WINDOW_CONFIG).constData()) << WINDOW_CONFIG;
     }
 }
 
 // Verify that calls to QWindow::requestUpdate() trigger paint events.
 void tst_QCocoaWindow::requestUpdate()
 {
-    QFETCH(TestWindowSpy::WindowConfiguration, windowconfiguration);
+    QFETCH(TestWindow::WindowConfiguration, windowconfiguration);
     LOOP {
         // Create test window
-        TestWindowSpy::TestWindowBase *twindow = TestWindowSpy::createTestWindow(windowconfiguration);
-        QWindow *qwindow = twindow->qwindow;
+        TestWindow *window = TestWindow::createWindow(windowconfiguration);
         QRect geometry(100, 100, 100, 100);
-        qwindow->setGeometry(geometry);
-        qwindow->show();
+        window->setGeometry(geometry);
+        window->show();
         WAIT
 
         // Run repeated requestUpdate -> paintEvent tests.
         for (int i = 0; i < 5; ++i) {
-            twindow->resetCounters();
-            qwindow->requestUpdate();
+            window->resetCounters();
+            window->requestUpdate();
             WAIT
-            QVERIFY(twindow->takeOneOrManyEvents(TestWindow::PaintEvent));
+            QVERIFY(window->takeOneOrManyEvents(TestWindow::PaintEvent));
             // TODO: Be stricter and expect one paint event only?
         }
 
-        delete qwindow;
+        delete window;
         WAIT
     }
 }
@@ -2028,9 +1781,9 @@ void tst_QCocoaWindow::repaint_native()
 
 void tst_QCocoaWindow::repaint_data()
 {
-    QTest::addColumn<TestWindowSpy::WindowConfiguration>("windowconfiguration");
+    QTest::addColumn<TestWindow::WindowConfiguration>("windowconfiguration");
     RASTER_WINDOW_CONFIGS {
-        QTest::newRow(windowConfigurationName(WINDOW_CONFIG).constData()) << WINDOW_CONFIG;
+        QTest::newRow(TestWindow::windowConfigurationName(WINDOW_CONFIG).constData()) << WINDOW_CONFIG;
     }
 }
 
@@ -2038,35 +1791,35 @@ void tst_QCocoaWindow::repaint_data()
 // flushes the new content to the window.
 void tst_QCocoaWindow::repaint()
 {
-    QFETCH(TestWindowSpy::WindowConfiguration, windowconfiguration);
+    QFETCH(TestWindow::WindowConfiguration, windowconfiguration);
 
-    TestWindowSpy::TestWindowBase *window = TestWindowSpy::createTestWindow(windowconfiguration);
+    TestWindow *window = TestWindow::createWindow(windowconfiguration);
     QPoint windowPoint(20, 20);
     QSize windowSize(200, 200);
     QRect geometry(windowPoint, windowSize);
-    window->fillColor = toQColor(OK_COLOR);
-    window->qwindow->setGeometry(geometry);
-    window->qwindow->show();
+    window->setFillColor(toQColor(OK_COLOR));
+    window->setGeometry(geometry);
+    window->show();
     WAIT WAIT
     window->resetCounters();
 
     // Repaint should trigger one immediate paint event
     window->repaint();
     QVERIFY(window->takeOneEvent(TestWindow::PaintEvent));
-    QVERIFY(!window->takeOneEvent(TestWindow::PaintEvent));
 
     // For comparison, update does not paint until we spin the event loop
     window->update(geometry);
     QVERIFY(!window->takeOneEvent(TestWindow::PaintEvent));
     WAIT
-    QVERIFY(window->takeOneEvent(TestWindow::PaintEvent));
+    QVERIFY(window->takeOneOrManyEvents(TestWindow::PaintEvent));
+    // TODO: Be stricter and expect one paint event only?
 
     // Verify that the updated contents are actually flushed to the window/display
     QRect testGeometry(QPoint(0, 0), windowSize);
-    QVERIFY(verifyImage(grabWindow(window->qwindow), testGeometry, toQColor(OK_COLOR)));
-    window->fillColor = toQColor(FILLER_COLOR);
+    QVERIFY(verifyImage(grabWindow(window), testGeometry, toQColor(OK_COLOR)));
+    window->setFillColor(toQColor(FILLER_COLOR));
     window->repaint();
-    QVERIFY(verifyImage(grabWindow(window->qwindow), testGeometry, toQColor(FILLER_COLOR)));
+    QVERIFY(verifyImage(grabWindow(window), testGeometry, toQColor(FILLER_COLOR)));
 
     delete window;
     WAIT
@@ -2130,50 +1883,50 @@ void tst_QCocoaWindow::opengl_layermode()
 
 void tst_QCocoaWindow::paint_coverage_data()
 {
-    QTest::addColumn<TestWindowSpy::WindowConfiguration>("windowconfiguration");
+    QTest::addColumn<TestWindow::WindowConfiguration>("windowconfiguration");
 #if 0
     // (### raster_layer is broken)
     RASTER_WINDOW_CONFIGS {
-        QTest::newRow(windowConfigurationName(WINDOW_CONFIG).constData()) << WINDOW_CONFIG;
+        QTest::newRow(TestWindow::windowConfigurationName(WINDOW_CONFIG).constData()) << WINDOW_CONFIG;
     }
 #else
-        QTest::newRow(windowConfigurationName(TestWindowSpy::RasterClassic).constData()) << TestWindowSpy::RasterClassic;
+        QTest::newRow(TestWindow::windowConfigurationName(TestWindow::RasterClassic).constData()) << TestWindow::RasterClassic;
 #endif
 }
 
 // Test that windows are correctly repainted on show(), update(), and repaint()
 void tst_QCocoaWindow::paint_coverage()
 {
-    QFETCH(TestWindowSpy::WindowConfiguration, windowconfiguration);
+    QFETCH(TestWindow::WindowConfiguration, windowconfiguration);
 
     LOOP {
         // Show window with solid color
-        TestWindowSpy::TestWindowBase *window = TestWindowSpy::createTestWindow(windowconfiguration);
+        TestWindow *window = TestWindow::createWindow(windowconfiguration);
         QRect geometry(20, 20, 200, 200);
-        window->fillColor = toQColor(FILLER_COLOR);
-        window->qwindow->setGeometry(geometry);
-        window->qwindow->show();
+        window->setFillColor(toQColor(FILLER_COLOR));
+        window->setGeometry(geometry);
+        window->show();
         WAIT WAIT
 
         // Verify that the pixels on screen match
         QRect imageGeometry(QPoint(0, 0), geometry.size());
-        QVERIFY(verifyImage(grabWindow(window->qwindow), imageGeometry, toQColor(FILLER_COLOR)));
+        QVERIFY(verifyImage(grabWindow(window), imageGeometry, toQColor(FILLER_COLOR)));
 
         // Fill subrect with new color
-        window->fillColor = toQColor(OK_COLOR);
+        window->setFillColor(toQColor(OK_COLOR));
         QRect updateRect(50, 50, 50, 50);
         window->update(updateRect);
         WAIT WAIT
 
         // Verify that the window was partially repainted
-        QVERIFY(verifyImage(grabWindow(window->qwindow), updateRect, toQColor(OK_COLOR)));
+        QVERIFY(verifyImage(grabWindow(window), updateRect, toQColor(OK_COLOR)));
         QRect notUpdated(110, 110, 50, 50);
-        QVERIFY(verifyImage(grabWindow(window->qwindow), notUpdated, toQColor(FILLER_COLOR)));
+        QVERIFY(verifyImage(grabWindow(window), notUpdated, toQColor(FILLER_COLOR)));
 
 #ifdef HAVE_QPAINTDEVICEWINDOW_REPAINT
         // Call repaint() and verify that the window has been repainted on return.
         window->repaint();
-        QVERIFY(verifyImage(grabWindow(window->qwindow), imageGeometry, toQColor(OK_COLOR)));
+        QVERIFY(verifyImage(grabWindow(window), imageGeometry, toQColor(OK_COLOR)));
 #endif
         delete window;
         WAIT

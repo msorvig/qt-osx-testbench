@@ -3,19 +3,203 @@
 #include <QtTest/QTest>
 #include <QtGui/QtGui>
 
-namespace TestWindowSpy {
-
-    QByteArray windowConfigurationName(WindowConfiguration windowConfiguration)
-    {
-        switch (windowConfiguration) {
-            case RasterClassic: return QByteArray("raster_classic");
-            case RasterLayer: return QByteArray("raster_layer");
-            case OpenGLClassic: return QByteArray("opengl_classic");
-            case OpenGLLayer: return QByteArray("opengl_layer");
-        };
-        return QByteArray("unknown_window_config");
+TestWindow *TestWindow::createWindow(TestWindow::WindowConfiguration configuration)
+{
+    QPaintDeviceWindow *window = 0;
+    TestWindowImplBase *baseWindow = 0;
+ 
+    // Select Raster/OpenGL
+    if (isRasterWindow(configuration)) {
+        TestWindowImplRaster *w = new TestWindowImplRaster();
+        window = w;
+        baseWindow = w;
+    } else {
+        TestWindowImplOpenGL *w = new TestWindowImplOpenGL();
+        window = w;
+        baseWindow = w;
     }
 
+    // Select Layer-backed/Classic
+    if (isLayeredWindow(configuration))
+        window->setProperty("_q_mac_wantsLayer", QVariant(true));
+    
+    return new TestWindow(window, baseWindow);
+}
+
+QByteArray TestWindow::windowConfigurationName(WindowConfiguration configuration)
+{
+    switch (configuration) {
+        case TestWindow::RasterClassic: return QByteArray("raster_classic");
+        case TestWindow::RasterLayer: return QByteArray("raster_layer");
+        case TestWindow::OpenGLClassic: return QByteArray("opengl_classic");
+        case TestWindow::OpenGLLayer: return QByteArray("opengl_layer");
+        case TestWindow::WindowConfigurationCount: break;
+    };
+    return QByteArray("unknown_window_config");
+}
+
+bool TestWindow::isRasterWindow(TestWindow::WindowConfiguration configuration)
+{
+    return configuration == TestWindow::RasterClassic
+        || configuration == TestWindow::RasterLayer;
+}
+
+bool TestWindow::isLayeredWindow(TestWindow::WindowConfiguration configuration)
+{
+    return configuration == TestWindow::RasterLayer
+        || configuration == TestWindow::OpenGLLayer;
+}
+
+void TestWindow::resetWindowCounter()
+{
+    TestWindowImplBase::resetWindowCounter();
+}
+
+int TestWindow::windowCount()
+{
+    return TestWindowImplBase::windowCount();
+}
+
+TestWindow::TestWindow(QPaintDeviceWindow *_dwin, TestWindowImplBase *_dbase)
+    :d(_dbase)
+    ,dwin(_dwin)
+{
+    resetCounters();
+}
+
+TestWindow::~TestWindow()
+{
+    delete d;
+}
+
+QWindow *TestWindow::qwindow()
+{
+    return dwin;
+}
+
+QWindow *TestWindow::takeQWindow()
+{
+    QWindow *ans = dwin;
+    dwin = 0;
+    d = 0;
+    return ans;
+}
+
+void TestWindow::resetCounters()
+{
+    d->resetCounters();
+}
+
+bool TestWindow::takeOneEvent(EventType type)
+{
+    return d->takeOneEvent(type);
+}
+
+bool TestWindow::takeOneOrManyEvents(EventType type)
+{
+    return d->takeOneOrManyEvents(type);
+}
+
+void TestWindow::setFillColor(QColor color)
+{
+    d->fillColor = color; 
+}
+
+void TestWindow::setForwardEvents(bool forward)
+{
+    d->forwardEvents = forward;
+}
+
+void TestWindow::repaint()
+{
+#ifdef HAVE_QPAINTDEVICEWINDOW_REPAINT
+    dwin->repaint();
+#else
+    qWarning("No QPaintDeviceWindow::repaint(), expect test failures");
+#endif
+}
+
+TestWindowImplBase::TestWindowImplBase()
+{
+    forwardEvents = false;
+    fillColor = QColor(Qt::green);
+    ++instanceCount;
+}
+
+TestWindowImplBase::~TestWindowImplBase()
+{
+    --instanceCount;
+}
+
+int TestWindowImplBase::instanceCount = 0;
+
+void TestWindowImplBase::resetWindowCounter()
+{
+    instanceCount  = 0;
+}
+
+int TestWindowImplBase::windowCount()
+{
+    return instanceCount;
+}
+
+void TestWindowImplBase::resetCounters()
+{
+    for (int i = 0; i < TestWindow::EventTypesCount; ++i)
+        eventCounts[i] = 0;
+}
+
+bool TestWindowImplBase::takeOneEvent(TestWindow::EventType type)
+{
+    if (eventCounts[type] != 1)
+        return false;
+    --eventCounts[type];
+    return true;
+}
+
+bool TestWindowImplBase::takeOneOrManyEvents(TestWindow::EventType type)
+{
+    if (eventCounts[type] < 1)
+        return false;
+    eventCounts[type] = 0;
+    return true;
+}
+
+void TestWindowImplBase::keyPressEventHandler(QKeyEvent * ev)
+{
+    ev->setAccepted(!forwardEvents);
+    eventCounts[TestWindow::KeyDownEvent] += forwardEvents ? 0 : 1;
+}
+
+void TestWindowImplBase::keyReleaseEventHandler(QKeyEvent * ev)
+{
+    ev->setAccepted(!forwardEvents);
+    eventCounts[TestWindow::KeyUpEvent] += forwardEvents ? 0 : 1;
+}
+
+void TestWindowImplBase::mousePressEventHandler(QMouseEvent * ev)
+{
+    ev->setAccepted(!forwardEvents);
+    eventCounts[TestWindow::MouseDownEvent] += forwardEvents ? 0 : 1;
+}
+
+void TestWindowImplBase::mouseReleaseEventHandler(QMouseEvent * ev)
+{
+    ev->setAccepted(!forwardEvents);
+    eventCounts[TestWindow::MouseUpEvent] += forwardEvents ? 0 : 1;
+}
+
+void TestWindowImplBase::exposeEventHandler(QExposeEvent *ev)
+{
+    if (ev->region().isEmpty())
+        ++eventCounts[TestWindow::ObscureEvent];
+    else
+        ++eventCounts[TestWindow::ExposeEvent];
+}
+
+void TestWindowImplBase::paintEventHandler(QPaintEvent *)
+{
+    ++eventCounts[TestWindow::PaintEvent];
 }
 
 QColor toQColor(NSColor *color) {
@@ -53,11 +237,21 @@ NSWindow *getNSWindow(QWindow *window)
     return static_cast<NSWindow*>(nswindow);
 }
 
+NSWindow *getNSWindow(TestWindow *window)
+{
+    return getNSWindow(window->qwindow());
+}
+
 NSView *getNSView(QWindow *window)
 {
     void *nsview = QGuiApplication::platformNativeInterface()->
                      nativeResourceForWindow(QByteArrayLiteral("nsview"), window);
     return static_cast<NSView*>(nsview);
+}
+
+NSView *getNSView(TestWindow *window)
+{
+    return getNSView(window->qwindow());
 }
 
 NSView *getNSView(NSView *view)
@@ -77,6 +271,11 @@ NSOpenGLContext *getNSOpenGLContext(QWindow *window)
     return static_cast<NSOpenGLContext*>(context);
 }
 
+NSOpenGLContext *getNSOpenGLContext(TestWindow *window)
+{
+    return getNSOpenGLContext(window->qwindow());
+}    
+
 NSOpenGLPixelFormat *getNSOpenGLPixelFormat(NSOpenGLContext *context)
 {
     CGLContextObj cglContext = [context CGLContextObj];
@@ -89,10 +288,15 @@ NSOpenGLPixelFormat *getNSOpenGLPixelFormat(QWindow *window)
     return getNSOpenGLPixelFormat(getNSOpenGLContext(window));
 }
 
-void waitForWindowVisible(QWindow *window)
+NSOpenGLPixelFormat *getNSOpenGLPixelFormat(TestWindow *window)
+{
+    return getNSOpenGLPixelFormat(window->qwindow());
+}
+
+void waitForWindowVisible(TestWindow *window)
 {
     // use qWaitForWindowExposed for now.
-    QTest::qWaitForWindowExposed(window);
+    QTest::qWaitForWindowExposed(window->qwindow());
     WAIT
 }
 
@@ -262,6 +466,11 @@ QRect screenGeometry(QWindow *window)
     return QRect(window->mapToGlobal(QPoint(0,0)), window->geometry().size());
 }
 
+QRect screenGeometry(TestWindow *window)
+{
+    return screenGeometry(window->qwindow());
+}
+
 // Qt global (window-interior) geometry to NSWindow global exterior geometry
 NSRect nswindowFrameGeometry(QRect qtWindowGeometry, NSWindow *window)
 {
@@ -307,6 +516,11 @@ CGImageRef grabWindow(NSWindow *window)
 QImage grabWindow(QWindow *window)
 {
     return toQImage(grabWindow(getNSWindow(window)));
+}
+
+QImage grabWindow(TestWindow *window)
+{
+    return grabWindow(window->qwindow());
 }
 
 // Tests if pixels inside a rect are of the given color.
