@@ -178,7 +178,7 @@ private slots:
     // Verify that raster window updates are correct.
     //
     void paint_coverage(); void paint_coverage_data();
-    void paint_coverage_childwindow();
+    void paint_coverage_childwindow(); void paint_coverage_childwindow_data();
 
 private:
     CGPoint m_cursorPosition; // initial cursor position
@@ -1887,10 +1887,47 @@ void tst_QCocoaWindow::paint_coverage()
     }
 }
 
+void tst_QCocoaWindow::paint_coverage_childwindow_data()
+{
+    QTest::addColumn<TestWindow::WindowConfiguration>("windowconfiguration");
+    WINDOW_CONFIGS {
+        QTest::newRow(TestWindow::windowConfigurationName(WINDOW_CONFIG).constData()) << WINDOW_CONFIG;
+    }
+}
+
 void tst_QCocoaWindow::paint_coverage_childwindow()
 {
+    QFETCH(TestWindow::WindowConfiguration, windowconfiguration);
 
+    QSize windowSize(150, 150);
 
+    // Crate parent/child window configuration where we expect the
+    // child to completely cover the parent
+    TestWindow *parent = TestWindow::createWindow(windowconfiguration);
+    parent->setFillColor(toQColor(ERROR_COLOR));
+    parent->setGeometry(QRect(QPoint(20, 20), windowSize));
+
+    TestWindow *child = TestWindow::createWindow(windowconfiguration);
+    child->setParent(parent);
+    child->setFillColor(toQColor(OK_COLOR));
+    child->setGeometry(QRect(QPoint(0, 0), windowSize));
+
+    // Note on show() call ordering: Show child first to ensure no flicker -
+    // this show() will be a no-op since the parent is hidden. However, in
+    // opengl_classic mode this causes parent window content to be
+    // painted over child window content.
+    if (windowconfiguration == TestWindow::OpenGLClassic)
+        QSKIP("incorrect parent/child QWindow paint order");
+
+    child->show();
+    parent->show();
+    WAIT
+
+    // Grab parent window/screen contents at parent geometry. Content grabbing
+    // happens at the NSWindow level, of which there is one for all tested
+    // QWindow configurations.
+    QVERIFY(verifyImage(grabWindow(parent), toQColor(OK_COLOR)));
+    QVERIFY(verifyImage(grabScreen(parent), toQColor(OK_COLOR)));
 }
 
 QTEST_MAIN(tst_QCocoaWindow)
