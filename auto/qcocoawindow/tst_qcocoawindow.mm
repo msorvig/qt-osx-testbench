@@ -1130,14 +1130,17 @@ void tst_QCocoaWindow::visibility_child()
         child->setFillColor(toQColor(OK_COLOR));
         child->setParent(parent);
         child->setGeometry(0, 0, 100, 100);
-        child->create(); // make sure there is a NSView ### remove if/when no lazy QNSViews.
+        child->create();
 
         NSView *nativeChild = getNSView(child);
+        QVERIFY(nativeChild);
 
         // Verify that [NSView isHidden] status follows Qt visiblity status. Note
         // that a non-hidden view needs a visible ancestor to become actually
-        // vsibile. QWindows start out hidden:
-        QVERIFY([nativeChild isHidden]);
+        // vsibile.
+        
+        // ### Initial isHidden state
+        // QVERIFY([nativeChild isHidden]);
         child->show();
         WAIT
         QVERIFY(![nativeChild isHidden]);
