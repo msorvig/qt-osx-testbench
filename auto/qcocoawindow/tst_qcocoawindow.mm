@@ -164,7 +164,7 @@ private slots:
     void drawRect_child_native(); void drawRect_child_native_data();
 
     void expose(); void expose_data();
-    void expose_stacked();
+    void expose_child(); void expose_child_data();
 
     void expose_resize(); void expose_resize_data();
     void requestUpdate(); void requestUpdate_data();
@@ -1611,28 +1611,62 @@ void tst_QCocoaWindow::expose()
     } // WINDOW_CONFIGS
 }
 
-void tst_QCocoaWindow::expose_stacked()
+void tst_QCocoaWindow::expose_child_data()
 {
-    WINDOW_CONFIGS  { LOOP {
-        TestWindow *lower = TestWindow::createWindow(WINDOW_CONFIG);
-        lower->setFillColor(toQColor(ERROR_COLOR));
-        TestWindow *upper = TestWindow::createWindow(WINDOW_CONFIG);
-        upper->setFillColor(toQColor(OK_COLOR));
-
-        upper->setParent(lower);
-        upper->setGeometry(0, 0, 100, 100);
-        upper->show();
-        lower->show();
-
-
-        WAIT WAIT         WAIT WAIT         WAIT WAIT
-
-        delete lower;
-
-        WAIT WAIT         WAIT WAIT         WAIT WAIT
-    }}
+    QTest::addColumn<TestWindow::WindowConfiguration>("windowconfiguration");
+    WINDOW_CONFIGS {
+        QTest::newRow(TestWindow::windowConfigurationName(WINDOW_CONFIG).constData()) << WINDOW_CONFIG;
+    }
 }
 
+
+// Test that child windows gets expose (and paint) events on show, and obscure events on hide
+void tst_QCocoaWindow::expose_child()
+{
+    QFETCH(TestWindow::WindowConfiguration, windowconfiguration);
+    LOOP {
+        QSize windowSize(100, 100);
+
+        TestWindow *parent = TestWindow::createWindow(windowconfiguration);
+        parent->setFillColor(toQColor(FILLER_COLOR));
+        parent->setGeometry(QRect(QPoint(20, 20), windowSize));
+
+        TestWindow *child = TestWindow::createWindow(windowconfiguration);
+        child->setParent(parent);
+        child->setFillColor(toQColor(OK_COLOR));
+        child->setGeometry(QRect(QPoint(0, 0), windowSize));
+
+        // QExposeEvent should be sent at window show/hide for all windows. QExposeEvent
+        // also mandates a repaint (when becoming visible). This means that QWindow always
+        // gets a repaint on show. This is unlike native behavior where the repaint may
+        // be omitted if there is cached content.
+        child->show();
+        parent->show();
+        WAIT
+        QVERIFY(parent->takeOneEvent(TestWindow::ExposeEvent));
+        QVERIFY(parent->takeOneEvent(TestWindow::PaintEvent));
+        QVERIFY(child->takeOneEvent(TestWindow::ExposeEvent));
+        QVERIFY(child->takeOneEvent(TestWindow::PaintEvent));
+
+        // Hide and test for obscure events
+        parent->hide();
+        WAIT
+        QVERIFY(parent->takeOneEvent(TestWindow::ObscureEvent));
+        QVERIFY(child->takeOneEvent(TestWindow::ObscureEvent));
+
+        // Re-show and test for expose/paint
+        parent->show();
+        WAIT
+        QVERIFY(parent->takeOneEvent(TestWindow::ExposeEvent));
+        QVERIFY(parent->takeOneEvent(TestWindow::PaintEvent));
+//    ### TODO
+//        QVERIFY(child->takeOneEvent(TestWindow::ExposeEvent));
+//        QVERIFY(child->takeOneEvent(TestWindow::PaintEvent));
+
+        delete parent;
+        WAIT
+    }
+}
 
 void tst_QCocoaWindow::expose_resize_data()
 {
