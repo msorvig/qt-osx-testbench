@@ -124,10 +124,10 @@ private slots:
     // cause Qt to transition the window to the visible state.
     //
     void visibility_native();
-    void visibility_setVisible();
-    void visibility_created_setGeometry();
-    void visibility_created_propagateSizeHints();
-    void visibility_created_drawrect();
+    void visibility_setVisible(); void visibility_setVisible_data();
+    void visibility_created_setGeometry(); void visibility_created_setGeometry_data();
+    void visibility_created_propagateSizeHints(); void visibility_created_propagateSizeHints_data();
+    void visibility_created_drawrect(); void visibility_created_drawrect_data();
     void visibility_child(); void visibility_child_data();
 
 
@@ -944,16 +944,27 @@ void tst_QCocoaWindow::visibility_native()
     }
 }
 
+void tst_QCocoaWindow::visibility_setVisible_data()
+{
+    QTest::addColumn<TestWindow::WindowConfiguration>("windowconfiguration");
+    WINDOW_CONFIGS {
+        QTest::newRow(TestWindow::windowConfigurationName(WINDOW_CONFIG).constData()) << WINDOW_CONFIG;
+    }
+}
+
 // Verify that native window visibility follows Qt window visibility.
 void tst_QCocoaWindow::visibility_setVisible()
 {
-     WINDOW_CONFIGS  {
-     LOOP {
-         TestWindow *window = TestWindow::createWindow(WINDOW_CONFIG);
+    QFETCH(TestWindow::WindowConfiguration, windowconfiguration);
+
+    // Test direct setVisible() call
+    LOOP {
+         TestWindow *window = TestWindow::createWindow(windowconfiguration);
 
          window->setVisible(true);
-         NSWindow *nativeWindow = getNSWindow(window);
          WAIT
+
+         NSWindow *nativeWindow = getNSWindow(window);
          QVERIFY(nativeWindow);
          QVERIFY(window->isVisible());
          QVERIFY(nativeWindow.isVisible);
@@ -966,11 +977,10 @@ void tst_QCocoaWindow::visibility_setVisible()
          delete window;
          WAIT
      }
-     }
 
-     WINDOW_CONFIGS  {
+     // Test create(), then setVisible();
      LOOP {
-         TestWindow *window = TestWindow::createWindow(WINDOW_CONFIG);
+         TestWindow *window = TestWindow::createWindow(windowconfiguration);
 
          window->create();
          NSWindow *nativeWindow = getNSWindow(window);
@@ -995,15 +1005,23 @@ void tst_QCocoaWindow::visibility_setVisible()
          delete window;
          WAIT
      }
-     }
  }
+
+void tst_QCocoaWindow::visibility_created_setGeometry_data()
+{
+    QTest::addColumn<TestWindow::WindowConfiguration>("windowconfiguration");
+    WINDOW_CONFIGS {
+        QTest::newRow(TestWindow::windowConfigurationName(WINDOW_CONFIG).constData()) << WINDOW_CONFIG;
+    }
+}
 
 // Verify that calling setGeometry on a (created) QWindow does not make the window visible
 void tst_QCocoaWindow::visibility_created_setGeometry()
 {
-    WINDOW_CONFIGS  {
+    QFETCH(TestWindow::WindowConfiguration, windowconfiguration);
+
     LOOP {
-        TestWindow *window = TestWindow::createWindow(WINDOW_CONFIG);
+        TestWindow *window = TestWindow::createWindow(windowconfiguration);
         window->create();
         window->setGeometry(40, 50, 20, 30);
         WAIT
@@ -1019,15 +1037,23 @@ void tst_QCocoaWindow::visibility_created_setGeometry()
         delete window;
         WAIT
     }
+}
+
+void tst_QCocoaWindow::visibility_created_propagateSizeHints_data()
+{
+    QTest::addColumn<TestWindow::WindowConfiguration>("windowconfiguration");
+    WINDOW_CONFIGS {
+        QTest::newRow(TestWindow::windowConfigurationName(WINDOW_CONFIG).constData()) << WINDOW_CONFIG;
     }
 }
 
 // Verify that calling propagateSizeHints on a (created) QWindow does not make the window visible
 void tst_QCocoaWindow::visibility_created_propagateSizeHints()
 {
-    WINDOW_CONFIGS  {
+    QFETCH(TestWindow::WindowConfiguration, windowconfiguration);
+
     LOOP {
-        TestWindow *window = TestWindow::createWindow(WINDOW_CONFIG);
+        TestWindow *window = TestWindow::createWindow(windowconfiguration);
         window->create();
 
         // Set min/max size, which should call propagateSizeHints on the
@@ -1047,17 +1073,25 @@ void tst_QCocoaWindow::visibility_created_propagateSizeHints()
         delete window;
         WAIT
     }
+}
+
+void tst_QCocoaWindow::visibility_created_drawrect_data()
+{
+    QTest::addColumn<TestWindow::WindowConfiguration>("windowconfiguration");
+    WINDOW_CONFIGS {
+        QTest::newRow(TestWindow::windowConfigurationName(WINDOW_CONFIG).constData()) << WINDOW_CONFIG;
     }
 }
 
 // Verify visibility change on drawRect
 void tst_QCocoaWindow::visibility_created_drawrect()
 {
+    QFETCH(TestWindow::WindowConfiguration, windowconfiguration);
+
     // Windows controlled by Qt do not become visible if there is a drawRect call:
     // Qt controls the visiblity.
-    WINDOW_CONFIGS  {
     LOOP {
-        TestWindow *window = TestWindow::createWindow(WINDOW_CONFIG);
+        TestWindow *window = TestWindow::createWindow(windowconfiguration);
         window->create();
 
         NSWindow *nativeWindow = getNSWindow(window);
@@ -1556,7 +1590,7 @@ void tst_QCocoaWindow::expose_data()
 void tst_QCocoaWindow::expose()
 {
     QFETCH(TestWindow::WindowConfiguration, windowconfiguration);
-    {
+
     LOOP {
         TestWindow *window = TestWindow::createWindow(windowconfiguration);
 
@@ -1608,7 +1642,6 @@ void tst_QCocoaWindow::expose()
 
         delete window;
     } // LOOP
-    } // WINDOW_CONFIGS
 }
 
 void tst_QCocoaWindow::expose_child_data()
