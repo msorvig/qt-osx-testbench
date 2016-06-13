@@ -155,11 +155,10 @@ private slots:
     //   - 'Paint now': The window is becoming visible and we need a graphics frame
     //     to display on screen. Expose event users musty flush a frame before returning.
     //
-    // Windows visibility must be be accurate (in particular, windows that are covered
-    // by other windows should revice an obscure evnent). Expose event timing must be
-    // correct: Qt should paint before the window becomes visible, but not before graphics
-    // is set up.
-    //
+    // Window visibility must be be accurate (in particular, windows that are covered
+    // by other windows should revice obscure events). Expose event timing must be
+    // correct: The first paint should happen as the window beomes visible, in time
+    // to show the first frame on screen.
     void drawRect_native(); void drawRect_native_data();
     void drawRect_child_native(); void drawRect_child_native_data();
 
@@ -176,7 +175,8 @@ private slots:
 
     // Repaint coverage
     //
-    // Verify that raster window updates are correct.
+    // Verify that window updates are correct by grabbing
+    // window and screen contents.
     //
     void paint_coverage(); void paint_coverage_data();
     void paint_coverage_childwindow(); void paint_coverage_childwindow_data();
@@ -282,7 +282,7 @@ NSWindow *createTestWindow()
         return;
     }
 
-    qDebug() << "left mouse down";
+    // qDebug() << "left mouse down";
     ++self.mouseDownCount;
 }
 
@@ -293,7 +293,7 @@ NSWindow *createTestWindow()
         return;
     }
 
-    qDebug() << "left mouse up";
+    // qDebug() << "left mouse up";
     ++self.mouseUpCount;
 }
 
@@ -305,7 +305,7 @@ NSWindow *createTestWindow()
     }
 
     NSString *characters = [theEvent characters];
-    qDebug() << "key down" << QString::fromNSString(characters);
+    // qDebug() << "key down" << QString::fromNSString(characters);
     ++self.keyDownCount;
 }
 
@@ -317,7 +317,7 @@ NSWindow *createTestWindow()
     }
 
     NSString *characters = [theEvent characters];
-    qDebug() << "key up" << QString::fromNSString(characters);
+    // qDebug() << "key up" << QString::fromNSString(characters);
     ++self.keyUpCount;
 }
 
@@ -327,7 +327,7 @@ NSWindow *createTestWindow()
         return [super performKeyEquivalent:theEvent];
     }
 
-    qDebug() << "perform key equivalent";
+    // qDebug() << "perform key equivalent";
     return NO;
     ++self.performKeyEquivalentCount;
 }
@@ -393,7 +393,7 @@ tst_QCocoaWindow::tst_QCocoaWindow()
     CFRelease(event);
 
     // Some tests functions count keyboard events. The test executable may be
-    // launched from a keydown event; give the keyup some time to clear:
+    // launched from a keydown event; give the keyup some time to clear.
     QTest::qWait(200);
 }
 
@@ -762,6 +762,9 @@ void tst_QCocoaWindow::geometry_toplevel()
         QCOMPARE(screenGeometry(window), geometry2);
         QCOMPARE(screenGeometry(nswindow), geometry2);
         QCOMPARE(screenGeometry(nsview), geometry2);
+
+        delete window;
+        WAIT
     }
 
     // Possible further testing
@@ -812,7 +815,7 @@ void tst_QCocoaWindow::geometry_toplevel_embed()
     // Test embedding in a parent NSView
 }
 
-// Test geometry for child QWidgets.
+// Test geometry for child QWindows.
 void tst_QCocoaWindow::geometry_child()
 {
     // test adding child to already visible parent
@@ -1535,7 +1538,7 @@ void tst_QCocoaWindow::drawRect_child_native()
         [upper release];
 
         // Depending on view configuration Cocoa may omit sending draw
-        // calls to the obscured lower view on the initial expose. Spesifically
+        // calls to the obscured lower view on the initial expose. Specifically
         // this happens in non-layer mode when the upper view declares that it is
         // opaque, indicating fills its entire are with solid pixels. In
         // layer mode the views are independently cached and we get drawRect
@@ -2022,8 +2025,8 @@ void tst_QCocoaWindow::paint_coverage_childwindow()
 
     QSize windowSize(150, 150);
 
-    // Crate parent/child window configuration where we expect the
-    // child to completely cover the parent
+    // Crate parent/child window configuration where the
+    // child to completely covers the parent
     TestWindow *parent = TestWindow::createWindow(windowconfiguration);
     parent->setFillColor(toQColor(ERROR_COLOR));
     parent->setGeometry(QRect(QPoint(20, 20), windowSize));
