@@ -90,6 +90,11 @@ void TestWindow::resetCounters()
     d->resetCounters();
 }
 
+int TestWindow::eventCount(EventType type)
+{
+    return d->eventCount(type);
+}
+
 bool TestWindow::takeOneEvent(EventType type)
 {
     return d->takeOneEvent(type);
@@ -147,6 +152,11 @@ void TestWindowImplBase::resetCounters()
 {
     for (int i = 0; i < TestWindow::EventTypesCount; ++i)
         eventCounts[i] = 0;
+}
+
+int TestWindowImplBase::eventCount(TestWindow::EventType type)
+{
+    return eventCounts[type];
 }
 
 bool TestWindowImplBase::takeOneEvent(TestWindow::EventType type)
@@ -454,9 +464,10 @@ QRect screenGeometry(NSView *view)
     return toQRect(qtScreenFrame);
 }
 
+// Returns the interior/content geometry ((excluding window decorations) for a window.
 QRect screenGeometry(NSWindow *window)
 {
-    // We want interior geometry (excluding window decorations). Use the contentView.
+    // Use the contentView to get the interior geometry
     return screenGeometry(window.contentView);
     // OR: return toQRect(qt_mac_flipRect[window contentRectForFrameRect:[window frame]]);
 }
@@ -512,7 +523,7 @@ CGImageRef grabWindow(NSWindow *window)
     return image;
 }
 
-// Grabs the contents of the given QWindow, at standard (1x) resolution.
+// Grabs the contents of the given QWindow, at 1x resolution.
 QImage grabWindow(QWindow *window)
 {
     return toQImage(grabWindow(getNSWindow(window)));
@@ -523,21 +534,68 @@ QImage grabWindow(TestWindow *window)
     return grabWindow(window->qwindow());
 }
 
-// Tests if pixels inside a rect are of the given color.
+// Grabs the contents of the screen, at the given coordinates, at 1x resolution
+CGImageRef grabScreen(QRect rect)
+{
+    qDebug() << "grab sscreen" << rect;
+    CGImageRef image = CGWindowListCreateImage(NSRectToCGRect(toNSRect(rect)), 
+                                               kCGWindowListOptionOnScreenOnly,
+                                               kCGNullWindowID, kCGWindowImageNominalResolution);
+    return image;
+}
+
+// Grabs the contents of the screen, at interior window coordinates, at 1x resolution
+CGImageRef grabScreen(NSWindow *window)
+{
+    return grabScreen(screenGeometry(window));
+}
+
+QImage grabScreen(QWindow *window)
+{
+    return toQImage(grabScreen(getNSWindow(window)));
+}
+
+QImage grabScreen(TestWindow *window)
+{
+    return grabScreen(window->qwindow());
+}
+
+// Tests if pixels inside a rect are of the given color. The test is
+// fuzzy and allows a +-1 match on pixel RGB values.
 bool verifyImage(const QImage &image, QRect rect, QColor color)
 {
+    image.save("grabbed.png");
+
+    int offset = 5;
     int stride = 10;
-    for (int y = rect.y(); y < rect.y() + rect.height(); y += stride) {
-        for (int x = rect.x(); x < rect.x() + rect.width(); x += stride) {
+    for (int y = rect.y() + offset; y < rect.y() - offset + rect.height(); y += stride) {
+        for (int x = rect.x() + offset; x < rect.x() - offset + rect.width(); x += stride) {
             QRgb pixel = image.pixel(x, y);
-            if (pixel != color.rgb())
-                return false;
+            QRgb expected = color.rgb();
+
+            if (pixel == expected)
+                continue;
+
+            // Allow off-by-one errors
+            if (qAbs(qRed(pixel) - qRed(expected) <= 1) &&
+                qAbs(qGreen(pixel) - qGreen(expected) <= 1) && 
+                qAbs(qBlue(pixel) - qBlue(expected) <= 1)) {
+                continue;
+            }
+
+            // No match                    
+            qWarning() << "(" << x << y << ")\n"
+                       << qRed(pixel) << qBlue(pixel) << qGreen(pixel) << "\n"
+                       << qRed(expected) << qBlue(expected) << qGreen(expected);
+            return false;
         }
     }
 
-    return true; // match
+    // Match
+    return true;
 }
 
-
-
-
+bool verifyImage(const QImage &image, QColor color)
+{
+    return verifyImage(image, QRect(QPoint(0, 0), image.size()), color);
+}

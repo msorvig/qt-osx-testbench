@@ -68,6 +68,7 @@ public:
     };
 
     void resetCounters();
+    int eventCount(EventType type);
     // "Take" functions for checking if there are zero, or one
     // (exactly), or many events of a particular event type
     // pending. These have the side effect of decrementing
@@ -116,6 +117,7 @@ public:
     static int windowCount();
 
     void resetCounters();
+    int eventCount(TestWindow::EventType type);
     bool takeOneEvent(TestWindow::EventType type);
     bool takeOneOrManyEvents(TestWindow::EventType type);
 
@@ -251,13 +253,19 @@ NSRect nsviewFrameGeometry(QRect qtWindowGeometry, NSView *view);
 
 QImage toQImage(CGImageRef image);
 
-// Grabs the contents of the given window, at standard (1x) resolution.
+// Grabs the contents of the given NSWindow, at 1x resolution.
 CGImageRef grabWindow(NSWindow *window);
 QImage grabWindow(QWindow *window);
 QImage grabWindow(TestWindow *window);
 
+// Grabs the contents of the screen, at 1x resolution.
+CGImageRef grabScreen(QRect rect);
+CGImageRef grabScreen(NSWindow *window);
+QImage grabScreen(QWindow *window);
+QImage grabScreen(TestWindow *window);
+
 // Tests if pixels inside a rect are of the given color.
 bool verifyImage(const QImage &image, QRect rect, QColor color);
-
+bool verifyImage(const QImage &image, QColor color);
 
 #endif
