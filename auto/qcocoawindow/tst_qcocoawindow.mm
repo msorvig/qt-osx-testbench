@@ -128,6 +128,7 @@ private slots:
     void visibility_created_setGeometry();
     void visibility_created_propagateSizeHints();
     void visibility_created_drawrect();
+    void visibility_child(); void visibility_child_data();
 
 
     // Event handling
@@ -1069,6 +1070,59 @@ void tst_QCocoaWindow::visibility_created_drawrect()
         delete window;
         WAIT
     }
+}
+
+void tst_QCocoaWindow::visibility_child_data()
+{
+    QTest::addColumn<TestWindow::WindowConfiguration>("windowconfiguration");
+    WINDOW_CONFIGS {
+        QTest::newRow(TestWindow::windowConfigurationName(WINDOW_CONFIG).constData()) << WINDOW_CONFIG;
+    }
+}
+
+// Verify that child window visibility is correctly handled
+void tst_QCocoaWindow::visibility_child()
+{
+    QFETCH(TestWindow::WindowConfiguration, windowconfiguration);
+
+    LOOP {
+        TestWindow *parent = TestWindow::createWindow(windowconfiguration);
+        parent->setFillColor(toQColor(ERROR_COLOR));
+        QRect parentGeometry(101, 102, 100, 100);
+        parent->setGeometry(parentGeometry);
+
+        TestWindow *child = TestWindow::createWindow(windowconfiguration);
+        child->setFillColor(toQColor(OK_COLOR));
+        child->setParent(parent);
+        child->setGeometry(0, 0, 100, 100);
+        child->create(); // make sure there is a NSView ### remove if/when no lazy QNSViews.
+
+        NSView *nativeChild = getNSView(child);
+
+        // Verify that [NSView isHidden] status follows Qt visiblity status. Note
+        // that a non-hidden view needs a visible ancestor to become actually
+        // vsibile. QWindows start out hidden:
+        QVERIFY([nativeChild isHidden]);
+        child->show();
+        WAIT
+        QVERIFY(![nativeChild isHidden]);
+        child->hide();
+        WAIT
+        QVERIFY([nativeChild isHidden]);
+
+        // Show parent with child
+        parent->show();
+        child->show();
+        WAIT
+        QVERIFY(![nativeChild isHidden]);
+
+        // Hide parent. Child should retain the non-hidden state.
+        parent->hide();
+        WAIT
+        QVERIFY(![nativeChild isHidden]);
+
+        delete parent;
+        WAIT
     }
 }
 
