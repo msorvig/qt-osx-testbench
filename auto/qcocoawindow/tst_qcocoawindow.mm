@@ -986,7 +986,7 @@ void tst_QCocoaWindow::visibility_setVisible()
          window->create();
          NSWindow *nativeWindow = getNSWindow(window);
 #ifdef HAVE_LAZY_NATIVE_WINDOWS
-./ts                 QVERIFY(!nativeWindow);
+         QVERIFY(!nativeWindow);
 #else
          QVERIFY(nativeWindow);
          QVERIFY(!window->isVisible());
