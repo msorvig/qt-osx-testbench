@@ -497,9 +497,8 @@ void tst_QCocoaWindow::construction()
             window->create();
             QVERIFY(window->handle() != 0);
 
-            // Native View and Window creation is possibly lazy
-#ifdef HAVE_LAZY_NATIVE_VIEWS_AND_WINDOWS
-            QCOMPARE(QCocoaSpy::viewCount(), 0);
+            // Native Window creation is possibly lazy
+#ifdef HAVE_LAZY_NATIVE_WINDOWS
             QCOMPARE(QCocoaSpy::windowCount(), 0);
 #endif
             // Calling show() forces the creation of the native views and windows.
@@ -547,8 +546,7 @@ void tst_QCocoaWindow::construction()
             QVERIFY(window->handle() != 0);
 
             // Native View and Window creation is possibly lazy
-#ifdef HAVE_LAZY_NATIVE_VIEWS_AND_WINDOWS
-            QCOMPARE(QCocoaSpy::viewCount(), 0);
+#ifdef HAVE_LAZY_NATIVE_WINDOWS
             QCOMPARE(QCocoaSpy::windowCount(), 0);
 #endif
 
@@ -987,8 +985,8 @@ void tst_QCocoaWindow::visibility_setVisible()
 
          window->create();
          NSWindow *nativeWindow = getNSWindow(window);
-#ifdef HAVE_LAZY_NATIVE_VIEWS_AND_WINDOWS
-         QVERIFY(!nativeWindow);
+#ifdef HAVE_LAZY_NATIVE_WINDOWS
+./ts                 QVERIFY(!nativeWindow);
 #else
          QVERIFY(nativeWindow);
          QVERIFY(!window->isVisible());
@@ -1030,7 +1028,7 @@ void tst_QCocoaWindow::visibility_created_setGeometry()
         WAIT
 
         NSWindow *nativeWindow = getNSWindow(window);
-#ifdef HAVE_LAZY_NATIVE_VIEWS_AND_WINDOWS
+#ifdef HAVE_LAZY_NATIVE_WINDOWS
         QVERIFY(!nativeWindow);
 #else
         QVERIFY(nativeWindow);
@@ -1066,7 +1064,7 @@ void tst_QCocoaWindow::visibility_created_propagateSizeHints()
         WAIT
 
         NSWindow *nativeWindow = getNSWindow(window);
-#ifdef HAVE_LAZY_NATIVE_VIEWS_AND_WINDOWS
+#ifdef HAVE_LAZY_NATIVE_WINDOWS
         QVERIFY(!nativeWindow);
 #else
         QVERIFY(nativeWindow);
