@@ -53,7 +53,7 @@
 // Global Options. These can be tweaked to run the examples/test in different configurations
 //
 
-int g_activeTestCase = 0; // The currently active test case (index)
+QSet<int> g_activeTestCases = { 0 }; // The currently active test cases (indices)
 int g_testViewCount = 1; // The number of test views to display
 bool g_animate = true; // animations enabled
 
@@ -152,9 +152,16 @@ NSTextField *g_nativeInstanceStatus = 0;
     return self;
 }
 
-- (void)changeTestCase:(id)sender {
-    NSButtonCell *selCell = [sender selectedCell];
-    g_activeTestCase = int([selCell tag]);
+- (void)updateTestCases:(id)sender {
+    NSButton *selCell = sender;
+    int index  = int([selCell tag]);
+    bool enable = bool([selCell intValue]);
+
+    if (enable)
+        g_activeTestCases.insert(index);
+    else
+        g_activeTestCases.remove(index);
+
     [g_appDelegate recreateTestWindow];
 }
 
@@ -220,6 +227,28 @@ NSTextField *g_nativeInstanceStatus = 0;
     [myMatrix release];
 }
 
+- (void) addCheckBoxGroup: (QStringList)texts withActionTarget: (SEL)onSelected
+{
+    // Add check boxes for all texts, with onSelected as the action
+    // and self as the target.
+    for (int i = 0; i < texts.count(); ++i) {
+        QString text = texts.at(i);
+        NSButton *button = [[NSButton alloc] init];
+        button.title = text.toNSString();
+        button.buttonType = NSSwitchButton;
+        button.tag = i;
+        button.action = onSelected;
+        button.target = self;
+        [self addControl:button];
+
+        // First button gets selected by default
+        if (i == 0)
+            button.intValue = 1;
+    }
+
+    return;
+}
+
 // Add a check box with text, target, and inital state
 - (void) addCheckBox: (NSString *)text withActionTarget: (SEL)onToggled state: (NSCellStateValue)initialState
 {
@@ -265,11 +294,10 @@ TestBenchControllerView *theControllerViewHack = 0; // There is only one, so OK.
                       << "Qt Masked Window"
                       << "Qt QtQuickWindow"
                       << "Qt QOpenGLWidget"
-                      << "Qt QtQuickWidget"
-                      << "Mixed QWindow"
-                      << "Mixed QWidget";
-    [self addRadioButtonGroup:testCases
-             withActionTarget:@selector(changeTestCase:)];
+                      << "Qt QtQuickWidget";
+
+    [self addCheckBoxGroup:testCases
+             withActionTarget:@selector(updateTestCases:)];
 
     [self addLabel:@"QWindow Configuration"];
     QStringList windowConfigurations = // (in QWindowConfiguration order)
@@ -554,23 +582,6 @@ NSView *getEmbeddableView(QWindow *qtWindow)
     }
 }
 
-- (void) mixedQWindow
-{
-    for (int i = 0; i < g_testViewCount; ++i) {
-        [self addChildWindow: new OpenGLWindow()];
-        [self addChildWindow: new RasterWindow()];
-    }
-}
-
-- (void) mixedQWidgets
-{
-    for (int i = 0; i < g_testViewCount; ++i) {
-        [self addChildView: [[AnimatedOpenGLVew alloc] init]];
-        [self addChildWindow: new OpenGLWindow()];
-        [self addChildWidget: new RedWidget()];
-    }
-}
-
 - (void) recreateTestWindow
 {
     // Save current test window geometry or set up default geometry
@@ -617,23 +628,23 @@ NSView *getEmbeddableView(QWindow *qtWindow)
     [contentView release];
     contentView = 0;
 
-    // Select test case
-    switch (g_activeTestCase) {
-        case 0: [self nativeNSOpenGLView]; break;
-        case 1: [self nativeOpenGLNSView]; break;
-        case 2: [self nativeOpenGLLayer]; break;
-        case 3: [self nativeRasterLayer]; break;
-        case 4: [self native120fpsView]; break;
-        case 5: [self qtOpenGLWindow]; break;
-        case 6: [self qtRasterWindow]; break;
-        case 7: [self qtWidget]; break;
-        case 8: [self maskedWindow]; break;
-        case 9: [self qtQuickWindow]; break;
-        case 10: [self qtOpenGLWidget]; break;
-        case 11: [self qtQuickWidget]; break;
-        case 12: [self mixedQWindow]; break;
-        case 13: [self mixedQWidgets]; break;
-        default: break;
+    // Select test cases
+    for (int i : g_activeTestCases) {
+        switch (i) {
+            case 0: [self nativeNSOpenGLView]; break;
+            case 1: [self nativeOpenGLNSView]; break;
+            case 2: [self nativeOpenGLLayer]; break;
+            case 3: [self nativeRasterLayer]; break;
+            case 4: [self native120fpsView]; break;
+            case 5: [self qtOpenGLWindow]; break;
+            case 6: [self qtRasterWindow]; break;
+            case 7: [self qtWidget]; break;
+            case 8: [self maskedWindow]; break;
+            case 9: [self qtQuickWindow]; break;
+            case 10: [self qtOpenGLWidget]; break;
+            case 11: [self qtQuickWidget]; break;
+            default: break;
+        }
     }
 
     // Show the top-level NSWindow for configs that have a single top-level window
@@ -647,7 +658,7 @@ NSView *getEmbeddableView(QWindow *qtWindow)
     }
 
     // Show status messages for known bad configurations
-    if (g_activeTestCase == 1 /*"Native NSView + NSOpenGLView"*/ && g_useContainingLayers) {
+    if (g_activeTestCases.contains(1) /*"Native NSView + NSOpenGLView"*/ && g_useContainingLayers) {
         [g_statusText setStringValue:@"Bad Config: NSView + NSGLContext in layer mode"];
         g_statusText.backgroundColor = [NSColor redColor];
     } else {
