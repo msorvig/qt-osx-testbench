@@ -439,19 +439,20 @@ void tst_QCocoaWindow::nativeViewsAndWindows()
         QCocoaSpy::reset(@"TestNSWidnow", @"TestNSView");
 
         QCOMPARE(QCocoaSpy::windowCount(), 0);
-        NSWindow *window = [[TestNSWidnow alloc] init];
+        
+        // Use autoreleasepool to make sure temp references
+        // to the NSWindow taken by Cocoa are cleaned up.
+        @autoreleasepool { 
+            NSWindow *window = [[TestNSWidnow alloc] init];
 
-        // wrap the orderFront / close calls in autoreleasepool
-        // to make sure any internal autorealeases are resolved
-        @autoreleasepool {
             [window makeKeyAndOrderFront:nil];
             WAIT
             QCOMPARE(QCocoaSpy::windowCount(), 1);
             [window close];
             [window release];
         }
+        WAIT
 
-        WAIT // this test is timing-sensitive: needs at least ~20ms wait here
         QCOMPARE(QCocoaSpy::windowCount(), 0);
     }
 
