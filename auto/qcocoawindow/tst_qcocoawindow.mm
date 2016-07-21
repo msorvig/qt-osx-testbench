@@ -943,14 +943,14 @@ void tst_QCocoaWindow::visibility_native()
 
         // makeKeyAndOrderFront does display.
         [window makeKeyAndOrderFront:nil];
+        WAIT
         QVERIFY(window.isVisible);
         QCOMPARE(view.drawRectCount, 1);
-        WAIT
 
         // orderOut hides
         [window orderOut:nil];
-        QVERIFY(!window.isVisible);
         WAIT
+        QVERIFY(!window.isVisible);
 
         // requesting a view repaint does not make the window visible
         [view setNeedsDisplay:YES];
