@@ -669,6 +669,8 @@ void tst_QCocoaWindow::embed()
             [window release];
             WAIT WAIT
         }
+        WAIT
+
         QCOMPARE(QCocoaSpy::viewCount(), 0);
         QCOMPARE(TestWindow::windowCount(), 0);
         QVERIFY(qwindow.isNull());
