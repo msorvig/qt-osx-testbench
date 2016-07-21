@@ -58,10 +58,12 @@
 class tst_QCocoaWindow : public QObject
 {
     Q_OBJECT
-public:
-    tst_QCocoaWindow();
-    ~tst_QCocoaWindow();
 private slots:
+    void initTestCase_data();
+    void initTestCase();
+    void cleanupTestCase();
+    void init();
+    void cleanup();
 
     // Window and view instance management
     void nativeViewsAndWindows();
@@ -383,7 +385,14 @@ private:
 //  Test Implementation
 //
 
-tst_QCocoaWindow::tst_QCocoaWindow()
+void tst_QCocoaWindow::initTestCase_data()
+{
+    QTest::addColumn<bool>("displaylink");
+    QTest::newRow("displaylink_update") << true;
+    QTest::newRow("timer_update") << false;
+}
+
+void tst_QCocoaWindow::initTestCase()
 {
     QCocoaSpy::init();
 
@@ -397,13 +406,26 @@ tst_QCocoaWindow::tst_QCocoaWindow()
     QTest::qWait(200);
 }
 
-tst_QCocoaWindow::~tst_QCocoaWindow()
+void tst_QCocoaWindow::cleanupTestCase()
 {
     // Be kind, rewind (the cursor position).
     NativeEventList events;
     events.append(new QNativeMouseMoveEvent(toQPoint(m_cursorPosition)));
     events.play();
     WAIT WAIT
+}
+
+void tst_QCocoaWindow::init()
+{
+    // Select update implementation (timer / cvdisplaylink).
+    QFETCH_GLOBAL(bool, displaylink);
+    qputenv("QT_MAC_ENABLE_CVDISPLAYLINK", displaylink ? QByteArray("1") : QByteArray("0"));
+}
+
+void tst_QCocoaWindow::cleanup()
+{
+    // Clean up windows left open by failing tests
+    TestWindow::deleteOpenWindows();
 }
 
 // Veryfy NSObject lifecycle assumtions and self-test the QCocoaSpy

@@ -3,6 +3,8 @@
 #include <QtTest/QTest>
 #include <QtGui/QtGui>
 
+Q_GLOBAL_STATIC(QList<TestWindow *>, testWindows);
+
 TestWindow *TestWindow::createWindow(TestWindow::WindowConfiguration configuration)
 {
     QPaintDeviceWindow *window = 0;
@@ -23,7 +25,19 @@ TestWindow *TestWindow::createWindow(TestWindow::WindowConfiguration configurati
     if (isLayeredWindow(configuration))
         window->setProperty("_q_mac_wantsLayer", QVariant(true));
     
-    return new TestWindow(window, baseWindow);
+    // Create and register TestWindow
+    TestWindow *testWindow = new TestWindow(window, baseWindow);
+    testWindows()->append(testWindow);
+    return testWindow;
+}
+
+void TestWindow::deleteOpenWindows()
+{
+    foreach(TestWindow *testWindow, *testWindows()) {
+        delete testWindow;
+        WAIT // Spin even loop to make native window close.
+    }
+    testWindows()->clear();
 }
 
 QByteArray TestWindow::windowConfigurationName(WindowConfiguration configuration)
@@ -69,6 +83,7 @@ TestWindow::TestWindow(QPaintDeviceWindow *_dwin, TestWindowImplBase *_dbase)
 
 TestWindow::~TestWindow()
 {
+    testWindows()->removeAll(this);
     delete d;
 }
 
@@ -218,9 +233,8 @@ QColor toQColor(NSColor *color) {
     return QColor(r * 255, g * 255, b * 255, a * 255);
 }
 
-void wait()
+void wait(int delay)
 {
-    int delay = 25;
     QTest::qWait(delay);
 }
 

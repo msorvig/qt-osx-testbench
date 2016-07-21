@@ -21,8 +21,8 @@
 //
 // The design of this class is driven by the following constraints:
 //   - Present one type to the tests, covering all window configurations
-//   - Implement using QRasterWindow and QOpenGLWindow from QtGUI
-//   - Share as much code between the implementations as possible
+//   - Implement using QRasterWindow and QOpenGLWindow from QtGui
+//   - Provide a common event counting API and implementation
 //
 class TestWindowImplBase;
 class TestWindow
@@ -40,6 +40,7 @@ public:
     };
 
     static TestWindow *createWindow(WindowConfiguration configuration = RasterClassic);
+    static void deleteOpenWindows();
     static QByteArray windowConfigurationName(WindowConfiguration windowConfiguration);
     static bool isRasterWindow(TestWindow::WindowConfiguration configuration);
     static bool isLayeredWindow(TestWindow::WindowConfiguration configuration);
@@ -188,10 +189,11 @@ public:
 #define WINDOW_CONFIG TestWindow::WindowConfiguration(_view_configuration)
 
 QColor toQColor(NSColor *color);
-void wait();
+void wait(int delay = 50);
 void stackTrace();
 
 #define WAIT wait();
+#define STOP wait(300000);
 #define LOOP for (int i = 0; i < iterations; ++i) @autoreleasepool // Don't leak
 
 // Utility functions for accessing native objects.
