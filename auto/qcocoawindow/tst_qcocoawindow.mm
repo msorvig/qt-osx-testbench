@@ -1779,6 +1779,7 @@ void tst_QCocoaWindow::expose_resize()
             NSRect frame = nswindowFrameGeometry(geometry, nswindow);
             [nswindow setFrame:frame display:YES animate:NO];
             // WAIT not needed due to immediate display.
+            WAIT // ### Event loop sping actually needed on 10.12 Beta
             QVERIFY(window->takeOneEvent(TestWindow::ExposeEvent));
             QVERIFY(window->takeOneEvent(TestWindow::PaintEvent));
         }
