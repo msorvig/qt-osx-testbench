@@ -1850,6 +1850,12 @@ void tst_QCocoaWindow::requestUpdate_data()
 void tst_QCocoaWindow::requestUpdate()
 {
     QFETCH(TestWindow::WindowConfiguration, windowconfiguration);
+
+    // Skip non-working displaylink + layer config.
+    QFETCH_GLOBAL(bool, displaylink);
+    if (displaylink && TestWindow::isLayeredWindow(windowconfiguration))
+        QEXPECT_FAIL("", "FIXME: layered displaylink updates", Abort);
+
     LOOP {
         // Create test window
         TestWindow *window = TestWindow::createWindow(windowconfiguration);
