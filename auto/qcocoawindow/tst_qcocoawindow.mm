@@ -894,10 +894,41 @@ void tst_QCocoaWindow::geometry_child()
     }
 }
 
+// Verify that an embedded a "foreign" NSView gets correct geometry.
 void tst_QCocoaWindow::geometry_child_foreign()
 {
+    LOOP {
+        // Create native parent window with foreign child, show.
+        TestWindow *parent = TestWindow::createWindow();
+        parent->setFillColor(toQColor(FILLER_COLOR));
+        QRect parentGeometry(101, 102, 103, 104);
+        parent->setGeometry(parentGeometry);
 
+        NSView *view = [[TestNSView alloc] init];
+        QWindow *child = QWindow::fromWinId(WId(view));
+        QPoint childOffset(20, 20);
+        QSize childSize(51, 51);
+        child->setGeometry(QRect(childOffset, childSize));
+        child->setParent(parent->qwindow());
 
+        // Show parent and check child geometry
+        parent->show();
+        WAIT
+        QCOMPARE(child->geometry(), QRect(childOffset, childSize));
+        QCOMPARE(screenGeometry(child).topLeft(), screenGeometry(parent).topLeft() + childOffset);
+        QCOMPARE(screenGeometry(child).size(), childSize);
+
+        // Move child and check geometry.
+        QPoint childOffset2(40, 40);
+        child->setGeometry(QRect(childOffset2, childSize));
+        WAIT
+        QCOMPARE(child->geometry(), QRect(childOffset2, childSize));
+        QCOMPARE(screenGeometry(child).topLeft(), screenGeometry(parent).topLeft() + childOffset2);
+        QCOMPARE(screenGeometry(child).size(), childSize);
+
+        delete parent;
+        WAIT
+    }
 }
 
 // Verify some basic NSwindow.isVisible behavior. See also
