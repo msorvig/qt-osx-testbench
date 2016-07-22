@@ -894,35 +894,6 @@ void tst_QCocoaWindow::geometry_child()
     }
 }
 
-// Verify that mouse event generation and processing works as expected for native views.
-void tst_QCocoaWindow::nativeMouseEvents()
-{
-    LOOP {
-        NSWindow *window = [[TestNSWidnow alloc] init];
-        TestNSView *view = [[TestNSView alloc] init];
-        window.contentView = view;
-        [view release];
-        [window makeKeyAndOrderFront:nil];
-
-        WAIT
-
-        QPoint viewCenter = screenGeometry(view).center();
-        NativeEventList events;
-        events.append(new QNativeMouseButtonEvent(viewCenter, Qt::LeftButton, 1, Qt::NoModifier));
-        events.append(new QNativeMouseButtonEvent(viewCenter, Qt::LeftButton, 0, Qt::NoModifier));
-        events.play();
-
-        WAIT WAIT
-
-        QCOMPARE(view.mouseDownCount, 1);
-        QCOMPARE(view.mouseUpCount, 1);
-
-        [window close];
-        [window release];
-        WAIT
-    }
-}
-
 void tst_QCocoaWindow::geometry_child_foreign()
 {
 
@@ -1185,6 +1156,35 @@ void tst_QCocoaWindow::visibility_child()
         QVERIFY(![nativeChild isHidden]);
 
         delete parent;
+        WAIT
+    }
+}
+
+// Verify that mouse event generation and processing works as expected for native views.
+void tst_QCocoaWindow::nativeMouseEvents()
+{
+    LOOP {
+        NSWindow *window = [[TestNSWidnow alloc] init];
+        TestNSView *view = [[TestNSView alloc] init];
+        window.contentView = view;
+        [view release];
+        [window makeKeyAndOrderFront:nil];
+
+        WAIT
+
+        QPoint viewCenter = screenGeometry(view).center();
+        NativeEventList events;
+        events.append(new QNativeMouseButtonEvent(viewCenter, Qt::LeftButton, 1, Qt::NoModifier));
+        events.append(new QNativeMouseButtonEvent(viewCenter, Qt::LeftButton, 0, Qt::NoModifier));
+        events.play();
+
+        WAIT WAIT
+
+        QCOMPARE(view.mouseDownCount, 1);
+        QCOMPARE(view.mouseUpCount, 1);
+
+        [window close];
+        [window release];
         WAIT
     }
 }
