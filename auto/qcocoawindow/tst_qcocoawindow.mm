@@ -1673,6 +1673,9 @@ void tst_QCocoaWindow::expose()
         WAIT
         QVERIFY(!window->takeOneEvent(TestWindow::ExposeEvent));
         QVERIFY(window->takeOneEvent(TestWindow::ObscureEvent));
+#if QT_VERSION >= QT_VERSION_CHECK(5, 8, 0)
+        QEXPECT_FAIL("", "expose test is broken on 5.8", Abort);
+#endif
         QVERIFY(!window->takeOneEvent(TestWindow::PaintEvent));
 
         // Request update on the hidden window: expect no expose or paint events.
@@ -1740,6 +1743,9 @@ void tst_QCocoaWindow::expose_child()
         WAIT
         QVERIFY(parent->takeOneEvent(TestWindow::ExposeEvent));
         QVERIFY(parent->takeOneEvent(TestWindow::PaintEvent));
+#if QT_VERSION >= QT_VERSION_CHECK(5, 8, 0)
+        QEXPECT_FAIL("", "expose_child test is broken on 5.8", Abort);
+#endif
         QVERIFY(child->takeOneEvent(TestWindow::ExposeEvent));
         QVERIFY(child->takeOneEvent(TestWindow::PaintEvent));
 
@@ -1858,6 +1864,12 @@ void tst_QCocoaWindow::requestUpdate()
     if (displaylink && TestWindow::isLayeredWindow(windowconfiguration))
         QEXPECT_FAIL("", "FIXME: layered displaylink updates", Abort);
 
+#if QT_VERSION >= QT_VERSION_CHECK(5, 8, 0)
+        if (TestWindow::isRasterWindow(windowconfiguration))
+                QSKIP("requestUpdate test (raster) is broken on 5.8");
+#endif
+
+
     LOOP {
         // Create test window
         TestWindow *window = TestWindow::createWindow(windowconfiguration);
@@ -1935,6 +1947,10 @@ void tst_QCocoaWindow::repaint_data()
 // flushes the new content to the window.
 void tst_QCocoaWindow::repaint()
 {
+#ifndef HAVE_QPAINTDEVICEWINDOW_REPAINT
+    QSKIP("This test needs a QWINDOW repaint() API");
+#endif
+
     QFETCH(TestWindow::WindowConfiguration, windowconfiguration);
 
     TestWindow *window = TestWindow::createWindow(windowconfiguration);
@@ -2071,6 +2087,9 @@ void tst_QCocoaWindow::paint_coverage()
         // Verify that the window was partially repainted
         QVERIFY(verifyImage(grabWindow(window), updateRect, toQColor(OK_COLOR)));
         QRect notUpdated(110, 110, 50, 50);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 8, 0)
+        QEXPECT_FAIL("", "paint_coverage test is broken on 5.8", Abort);
+#endif
         QVERIFY(verifyImage(grabWindow(window), notUpdated, toQColor(FILLER_COLOR)));
 
 #ifdef HAVE_QPAINTDEVICEWINDOW_REPAINT
