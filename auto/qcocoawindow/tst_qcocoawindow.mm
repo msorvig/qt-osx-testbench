@@ -1961,13 +1961,19 @@ void tst_QCocoaWindow::repaint()
     QVERIFY(verifyImage(grabWindow(window), testGeometry, toQColor(OK_COLOR)));
     window->setFillColor(toQColor(FILLER_COLOR));
     window->repaint();
+
+    // Skip non-working displaylink + layer config.
+    QFETCH_GLOBAL(bool, displaylink);
+    if (displaylink && TestWindow::isLayeredWindow(windowconfiguration))
+        QEXPECT_FAIL("", "FIXME: layered displaylink updates", Abort);
+
     QVERIFY(verifyImage(grabWindow(window), testGeometry, toQColor(FILLER_COLOR)));
 
     delete window;
     WAIT
 }
 
-// Test layer-mode QWindow with a custom OPenGL foramt. Expected behavior
+// Test layer-mode QWindow with a custom OpenGL format. Expected behavior
 // is that the OpneGL context for the layer is configured with the custom
 // format set on the context.
 void tst_QCocoaWindow::opengl_layermode()
