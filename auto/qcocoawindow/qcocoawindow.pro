@@ -31,9 +31,8 @@ OBJECTIVE_SOURCES += $$PWD/tst_qcocoawindow.mm
 LIBS += -framework AppKit
 
 # API usage switches. Comment in for Qt branches that
-# have the new API.
+# have the new API / feature
 DEFINES += HAVE_TRANSFER_NATIVE_VIEW
 DEFINES += HAVE_QPAINTDEVICEWINDOW_REPAINT
-
 DEFINES += HAVE_LAZY_NATIVE_WINDOWS
-
+DEFINES += HAVE_CVDISPLAYLINK

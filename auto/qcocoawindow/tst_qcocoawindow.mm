@@ -388,7 +388,9 @@ private:
 void tst_QCocoaWindow::initTestCase_data()
 {
     QTest::addColumn<bool>("displaylink");
+#ifdef HAVE_CVDISPLAYLINK
     QTest::newRow("displaylink_update") << true;
+#endif
     QTest::newRow("timer_update") << false;
 }
 
