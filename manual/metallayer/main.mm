@@ -5,7 +5,7 @@
 #include <AppKit/AppKit.h>
 #include <QuartzCore/QuartzCore.h>
 
-@interface MetalLayerBackedView : NSView
+@interface MetalLayerBackedView : NSView <CALayerDelegate>
 {
     id<MTLDevice> metalDevice;
     CAMetalLayer *metalLayer;
@@ -18,25 +18,11 @@
 - (id)init
 {
     qDebug() << "MetalLayerBackedView init";
-    self = [super init];
-    if (!self)
-        return 0;
-    
-    self.wantsLayer = YES; // Enable layer backing
-    
-    // self.layerContentsRedrawPolicy has no effect since we return a custom layer in makeBackingLayer
-    // self.layerContentsRedrawPolicy = NSViewLayerContentsRedrawDuringViewResize;
-    
-    [self initMetal];
-
-    // Set up redraw-on-resize
-    [self setPostsFrameChangedNotifications:YES];
-    NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
-    [center addObserver:self
-               selector:@selector(frameDidChangeNotification:)
-                   name:NSViewFrameDidChangeNotification
-                 object:self];
-    
+    if ((self = [super init])) {
+        self.wantsLayer = YES; // Enable layer backing
+        self.layerContentsRedrawPolicy = NSViewLayerContentsRedrawDuringViewResize;
+        [self initMetal];
+    }
     return self;
 }
 
@@ -49,23 +35,23 @@
     return metalLayer;
 }
 
-- (BOOL)wantsUpdateLayer
+- (void)displayLayer:(CALayer *)layer
 {
-    qDebug() << "wantsUpdateLayer";
-    return YES; // Yes: we manage layer updates
-}
+    qDebug() << "displayLayer";
 
-- (void)drawRect:(NSRect)dirtyRect
-{
-    // drawRect is not called since we return YES from wantsUpdateLayer
-    Q_UNUSED(dirtyRect);
-    qDebug() << "drawRect";
-}
+    int windowScale = self.window.backingScaleFactor;
+    if (windowScale == 0)
+    windowScale = 2;
 
-- (void)updateLayer
-{
-    // updateLayer is not called since we set a custom layer in makeBackingLayer (?)
-    qDebug() << "updateLayer";
+    // The documentation states that drawableSize will be updated automatically
+    // based on the layer size and contentsScale, but this does not seem to be
+    // the case in practice.
+    CGSize drawableSize = self.layer.bounds.size;
+    drawableSize.width *= windowScale;
+    drawableSize.height *= windowScale;
+    metalLayer.drawableSize = drawableSize;
+
+    [renderer drawFrame];
 }
 
 - (void)initMetal
@@ -92,32 +78,6 @@
     // Create Renderer
     metalLayer.device = metalDevice;
     renderer = [[AAPLRenderer alloc] initWithMetalLayer:metalLayer library:library];
-}
-
-- (void)frameDidChangeNotification:(NSNotification *)notification
-{
-    Q_UNUSED(notification);
-
-    int windowScale = self.window.backingScaleFactor;
-    if (windowScale == 0)
-        windowScale = 2;
-
-    // The documentation states that drawableSize will be updated automatically
-    // based on the layer size and contentsScale, but this does not seem to be
-    // the case in practice.
-    CGSize drawableSize = self.layer.bounds.size;
-    drawableSize.width *= windowScale;
-    drawableSize.height *= windowScale;
-    metalLayer.drawableSize = drawableSize;
-    
-    qDebug() << "frameDidChangeNotification" << "\n"
-             << "self.bounds.size" << QSizeF::fromCGSize(self.bounds.size) << "\n"
-             << "self.layer.bounds.size" << QSizeF::fromCGSize(self.layer.bounds.size) << "\n"
-             << "self.layer.contentsScale" << self.layer.contentsScale << "\n"
-             << "self.window.backingScaleFactor" << self.window.backingScaleFactor << "\n"
-             << "metalLayer.drawableSize" << QSizeF::fromCGSize(metalLayer.drawableSize);
-
-    [renderer drawFrame];
 }
 
 @end
