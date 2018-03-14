@@ -35,22 +35,24 @@
     return metalLayer;
 }
 
+- (void)viewDidChangeBackingProperties
+{
+    qDebug() << "viewDidChangeBackingProperties";
+    self.layer.contentsScale = self.window.backingScaleFactor;
+}
+
+- (void)layoutSublayersOfLayer:(CALayer *)layer
+{
+    qDebug() << "layoutSublayersOfLayer";
+    CGSize drawableSize = self.layer.bounds.size;
+    drawableSize.width *= self.layer.contentsScale;
+    drawableSize.height *= self.layer.contentsScale;
+    metalLayer.drawableSize = drawableSize;
+}
+
 - (void)displayLayer:(CALayer *)layer
 {
     qDebug() << "displayLayer";
-
-    int windowScale = self.window.backingScaleFactor;
-    if (windowScale == 0)
-    windowScale = 2;
-
-    // The documentation states that drawableSize will be updated automatically
-    // based on the layer size and contentsScale, but this does not seem to be
-    // the case in practice.
-    CGSize drawableSize = self.layer.bounds.size;
-    drawableSize.width *= windowScale;
-    drawableSize.height *= windowScale;
-    metalLayer.drawableSize = drawableSize;
-
     [renderer drawFrame];
 }
 
