@@ -35,19 +35,26 @@
     return metalLayer;
 }
 
+- (void)updateLayerDrawableSize
+{
+    CGSize drawableSize = self.layer.bounds.size;
+    drawableSize.width *= self.layer.contentsScale;
+    drawableSize.height *= self.layer.contentsScale;
+    metalLayer.drawableSize = drawableSize;
+}
+
 - (void)viewDidChangeBackingProperties
 {
     qDebug() << "viewDidChangeBackingProperties";
     self.layer.contentsScale = self.window.backingScaleFactor;
+    [self updateLayerDrawableSize];
+    [self setNeedsDisplay:YES];
 }
 
 - (void)layoutSublayersOfLayer:(CALayer *)layer
 {
     qDebug() << "layoutSublayersOfLayer";
-    CGSize drawableSize = self.layer.bounds.size;
-    drawableSize.width *= self.layer.contentsScale;
-    drawableSize.height *= self.layer.contentsScale;
-    metalLayer.drawableSize = drawableSize;
+    [self updateLayerDrawableSize];
 }
 
 - (void)displayLayer:(CALayer *)layer

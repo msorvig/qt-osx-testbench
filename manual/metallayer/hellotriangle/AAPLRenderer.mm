@@ -139,7 +139,8 @@ Implementation of renderer class which perfoms Metal setup and per frame renderi
     //   because its buffer attribute qualifier also uses AAPLVertexInputIndexViewportSize
     //   for its index
     
-    vector_uint2 viewportSize = { (unsigned int)(_metalLayer.drawableSize.width), (unsigned int)(_metalLayer.drawableSize.height) };
+    vector_uint2 viewportSize = { (unsigned int)(_metalLayer.bounds.size.width),
+                                  (unsigned int)(_metalLayer.bounds.size.height) };
     [renderEncoder setVertexBytes:&viewportSize
                            length:sizeof(viewportSize)
                           atIndex:AAPLVertexInputIndexViewportSize];
