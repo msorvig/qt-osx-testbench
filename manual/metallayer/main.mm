@@ -18,12 +18,14 @@
 - (id)init
 {
     qDebug() << "MetalLayerBackedView init";
-    if ((self = [super init])) {
-        self.wantsLayer = YES; // Enable layer backing
-        self.layerContentsRedrawPolicy = NSViewLayerContentsRedrawDuringViewResize;
-        [self initMetal];
-    }
+    self = [super init];
     return self;
+}
+
+- (BOOL)wantsLayer
+{
+    qDebug() << "wantsLayer";
+    return YES;
 }
 
 - (CALayer *)makeBackingLayer
@@ -33,6 +35,11 @@
     // One Metal Layer, please
     metalLayer = [CAMetalLayer layer];
     return metalLayer;
+}
+
+- (NSViewLayerContentsRedrawPolicy) layerContentsRedrawPolicy
+{
+    return NSViewLayerContentsRedrawDuringViewResize;
 }
 
 - (void)updateLayerDrawableSize
@@ -60,11 +67,15 @@
 - (void)displayLayer:(CALayer *)layer
 {
     qDebug() << "displayLayer";
+    [self initMetal];
     [renderer drawFrame];
 }
 
 - (void)initMetal
 {
+    if (metalDevice != nil)
+        return;
+
     qDebug() << "initMetal";
     
     metalDevice = MTLCreateSystemDefaultDevice();
