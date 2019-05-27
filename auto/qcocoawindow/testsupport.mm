@@ -34,8 +34,9 @@ TestWindow *TestWindow::createWindow(TestWindow::WindowConfiguration configurati
 void TestWindow::deleteOpenWindows()
 {
     foreach(TestWindow *testWindow, *testWindows()) {
-        delete testWindow;
-        WAIT // Spin even loop to make native window close.
+        qDebug() << "WARNING: leaking TestWindow" << testWindow;
+        // delete testWindow;
+        // WAIT // Spin even loop to make the native window close.
     }
     testWindows()->clear();
 }
@@ -43,10 +44,8 @@ void TestWindow::deleteOpenWindows()
 QByteArray TestWindow::windowConfigurationName(WindowConfiguration configuration)
 {
     switch (configuration) {
-        case TestWindow::RasterClassic: return QByteArray("raster_classic");
-        case TestWindow::RasterLayer: return QByteArray("raster_layer");
-        case TestWindow::OpenGLClassic: return QByteArray("opengl_classic");
-        case TestWindow::OpenGLLayer: return QByteArray("opengl_layer");
+        case TestWindow::Raster: return QByteArray("raster");
+        case TestWindow::OpenGL: return QByteArray("opengl");
         case TestWindow::WindowConfigurationCount: break;
     };
     return QByteArray("unknown_window_config");
@@ -54,14 +53,12 @@ QByteArray TestWindow::windowConfigurationName(WindowConfiguration configuration
 
 bool TestWindow::isRasterWindow(TestWindow::WindowConfiguration configuration)
 {
-    return configuration == TestWindow::RasterClassic
-        || configuration == TestWindow::RasterLayer;
+    return configuration == TestWindow::Raster;
 }
 
 bool TestWindow::isLayeredWindow(TestWindow::WindowConfiguration configuration)
 {
-    return configuration == TestWindow::RasterLayer
-        || configuration == TestWindow::OpenGLLayer;
+    return configuration == TestWindow::Raster;
 }
 
 void TestWindow::resetWindowCounter()
@@ -85,6 +82,13 @@ TestWindow::~TestWindow()
 {
     testWindows()->removeAll(this);
     delete d;
+
+    // Create and make a dummy window key/front in order
+    // to flush out the test windows
+    NSWindow *dummy = [[NSWindow alloc] init];
+    [dummy makeKeyAndOrderFront:nil];
+    [dummy close];
+
 }
 
 QWindow *TestWindow::qwindow()

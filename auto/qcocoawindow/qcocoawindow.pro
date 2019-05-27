@@ -1,6 +1,6 @@
 TEMPLATE = app
 
-QT += core gui gui-private testlib platformsupport-private
+QT += core gui gui-private testlib
 
 OBJECTS_DIR = .obj
 MOC_DIR = .moc
@@ -32,7 +32,13 @@ LIBS += -framework AppKit
 
 # API usage switches. Comment in for Qt branches that
 # have the new API / feature
-DEFINES += HAVE_TRANSFER_NATIVE_VIEW
-DEFINES += HAVE_QPAINTDEVICEWINDOW_REPAINT
-DEFINES += HAVE_LAZY_NATIVE_WINDOWS
-DEFINES += HAVE_CVDISPLAYLINK
+#DEFINES += HAVE_TRANSFER_NATIVE_VIEW
+#DEFINES += HAVE_QPAINTDEVICEWINDOW_REPAINT
+#DEFINES += HAVE_LAZY_NATIVE_WINDOWS
+#DEFINES += HAVE_CVDISPLAYLINK
+
+# MacOS 10.14 disables CGEventPost for security reasons
+# Things to try:
+# Info.plist: NSAppleEventsUsageDescription
+# .pro:       LIBS += -Wl,-sdk_version -Wl,10.13
+#DEFINES += HAVE_WORKING_CGEVENTPOST

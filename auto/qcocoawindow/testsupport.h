@@ -28,18 +28,14 @@ class TestWindowImplBase;
 class TestWindow
 {
 public:
-    // Test window configurations. In reallity there are two independent
-    // config variables but we are making a linear list.
     enum WindowConfiguration
     {
-        RasterClassic,
-        RasterLayer,
-        OpenGLClassic,
-        OpenGLLayer,
+        Raster,
+        OpenGL,
         WindowConfigurationCount
     };
 
-    static TestWindow *createWindow(WindowConfiguration configuration = RasterClassic);
+    static TestWindow *createWindow(WindowConfiguration configuration = Raster);
     static void deleteOpenWindows();
     static QByteArray windowConfigurationName(WindowConfiguration windowConfiguration);
     static bool isRasterWindow(TestWindow::WindowConfiguration configuration);
@@ -147,7 +143,10 @@ public:
     void keyReleaseEvent(QKeyEvent * ev) Q_DECL_OVERRIDE { keyReleaseEventHandler(ev); }
     void mousePressEvent(QMouseEvent * ev) Q_DECL_OVERRIDE { mousePressEventHandler(ev); }
     void mouseReleaseEvent(QMouseEvent * ev) Q_DECL_OVERRIDE { mouseReleaseEventHandler(ev); }
-    void exposeEvent(QExposeEvent *ev) Q_DECL_OVERRIDE { exposeEventHandler(ev); QRasterWindow::exposeEvent(ev); }
+    void exposeEvent(QExposeEvent *ev) Q_DECL_OVERRIDE { 
+        qDebug() << "TestWindowImplRaster exposeEvent";
+        exposeEventHandler(ev); QRasterWindow::exposeEvent(ev); 
+    }
     void paintEvent(QPaintEvent *ev) Q_DECL_OVERRIDE
     {
         paintEventHandler(ev);
@@ -173,7 +172,11 @@ public:
     void keyReleaseEvent(QKeyEvent * ev) Q_DECL_OVERRIDE { keyReleaseEventHandler(ev); }
     void mousePressEvent(QMouseEvent * ev) Q_DECL_OVERRIDE { mousePressEventHandler(ev); }
     void mouseReleaseEvent(QMouseEvent * ev) Q_DECL_OVERRIDE { mouseReleaseEventHandler(ev); }
-    void exposeEvent(QExposeEvent *ev) Q_DECL_OVERRIDE { exposeEventHandler(ev); QOpenGLWindow::exposeEvent(ev); }
+    void exposeEvent(QExposeEvent *ev) Q_DECL_OVERRIDE { 
+        qDebug() << "TestWindowImplRaster exposeEvent";
+        exposeEventHandler(ev); 
+        QOpenGLWindow::exposeEvent(ev); 
+    }
     void paintGL() Q_DECL_OVERRIDE
     {
         paintEventHandler(0);
@@ -183,9 +186,11 @@ public:
     }
 };
 
-// Macro for iterating over window configurations
+// Macro for iterating over window configurations. 
+// Historical note: There used to be layer/classic configs as well,
+// hence the somewhat overdone infrastructure.
 #define WINDOW_CONFIGS for (int _view_configuration = 0; _view_configuration < TestWindow::WindowConfigurationCount; ++_view_configuration)
-#define RASTER_WINDOW_CONFIGS for (int _view_configuration = 0; _view_configuration <= TestWindow::RasterLayer; ++_view_configuration)
+#define RASTER_WINDOW_CONFIGS for (int _view_configuration = 0; _view_configuration <= TestWindow::Raster; ++_view_configuration)
 #define WINDOW_CONFIG TestWindow::WindowConfiguration(_view_configuration)
 
 QColor toQColor(NSColor *color);
